@@ -11,6 +11,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
@@ -20,7 +21,19 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 @Entity
-@Table(name = "spool")
+@Table(
+    name = "spool",
+    indexes = {
+        @Index(name = "idx_spool_storage_location", columnList = "storage_location_id"),
+        @Index(name = "idx_spool_color_number", columnList = "color_number"),
+        @Index(name = "idx_spool_manufacturer", columnList = "manufacturer_id"),
+        @Index(name = "idx_spool_filament_type", columnList = "filament_type_id"),
+        @Index(name = "idx_spool_color", columnList = "color_id"),
+        @Index(name = "idx_spool_legacy_location", columnList = "location"),
+        @Index(name = "idx_spool_is_empty", columnList = "is_empty"),
+        @Index(name = "idx_spool_uid", columnList = "uid")
+    }
+)
 public class Spool extends PanacheEntity {
 
     @Column(nullable = false, unique = true, updatable = false)

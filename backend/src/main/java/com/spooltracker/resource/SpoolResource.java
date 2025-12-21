@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.spooltracker.dto.CreateSpoolDTO;
+import com.spooltracker.dto.PagedResponse;
 import com.spooltracker.dto.SpoolDTO;
 import com.spooltracker.dto.UpdateSpoolDTO;
 import com.spooltracker.entity.FilamentColor;
@@ -12,10 +13,13 @@ import com.spooltracker.entity.Location;
 import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Spool;
 import com.spooltracker.entity.SpoolLocation;
+import com.spooltracker.service.SpoolHistoryService;
 
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.PATCH;
@@ -33,39 +37,105 @@ import jakarta.ws.rs.core.Response;
 @Consumes(MediaType.APPLICATION_JSON)
 public class SpoolResource {
 
+    @Inject
+    SpoolHistoryService historyService;
+
     @GET
-    public List<SpoolDTO> getAll(
+    public Response getAll(
         @QueryParam("location") SpoolLocation location,
         @QueryParam("storageLocationId") Long storageLocationId,
         @QueryParam("manufacturerId") Long manufacturerId,
         @QueryParam("filamentTypeId") Long filamentTypeId,
         @QueryParam("colorId") Long colorId,
         @QueryParam("isEmpty") Boolean isEmpty,
-        @QueryParam("colorNumber") String colorNumber
+        @QueryParam("colorNumber") String colorNumber,
+        @QueryParam("search") String search,
+        @QueryParam("page") @DefaultValue("0") int page,
+        @QueryParam("pageSize") @DefaultValue("50") int pageSize
     ) {
-        List<Spool> spools;
+        // Use Panache query with proper parameter binding
+        io.quarkus.panache.common.Page panachePage = io.quarkus.panache.common.Page.of(page, pageSize);
+        
+        // Build query conditions
+        List<String> conditions = new java.util.ArrayList<>();
+        List<Object> params = new java.util.ArrayList<>();
+        int paramIndex = 1;
         
         if (colorNumber != null && !colorNumber.trim().isEmpty()) {
-            spools = Spool.findByColorNumber(colorNumber.trim());
-        } else if (storageLocationId != null) {
-            spools = Spool.findByStorageLocation(storageLocationId);
-        } else if (location != null) {
-            spools = Spool.findByLegacyLocation(location);
-        } else if (manufacturerId != null) {
-            spools = Spool.findByManufacturer(manufacturerId);
-        } else if (filamentTypeId != null) {
-            spools = Spool.findByFilamentType(filamentTypeId);
-        } else if (colorId != null) {
-            spools = Spool.findByColor(colorId);
-        } else if (isEmpty != null) {
-            spools = isEmpty ? Spool.findEmpty() : Spool.findActive();
-        } else {
-            spools = Spool.listAll();
+            conditions.add("colorNumber = ?" + paramIndex++);
+            params.add(colorNumber.trim());
+        }
+        if (storageLocationId != null) {
+            conditions.add("storageLocation.id = ?" + paramIndex++);
+            params.add(storageLocationId);
+        }
+        if (location != null) {
+            conditions.add("legacyLocation = ?" + paramIndex++);
+            params.add(location);
+        }
+        if (manufacturerId != null) {
+            conditions.add("manufacturer.id = ?" + paramIndex++);
+            params.add(manufacturerId);
+        }
+        if (filamentTypeId != null) {
+            conditions.add("filamentType.id = ?" + paramIndex++);
+            params.add(filamentTypeId);
+        }
+        if (colorId != null) {
+            conditions.add("color.id = ?" + paramIndex++);
+            params.add(colorId);
+        }
+        if (isEmpty != null) {
+            conditions.add("isEmpty = ?" + paramIndex++);
+            params.add(isEmpty);
         }
         
-        return spools.stream()
+        // Add search filter
+        if (search != null && !search.trim().isEmpty()) {
+            String searchLower = "%" + search.toLowerCase().trim() + "%";
+            conditions.add("(LOWER(color.name) LIKE ?" + paramIndex++
+                + " OR LOWER(colorNumber) LIKE ?" + paramIndex++
+                + " OR LOWER(notes) LIKE ?" + paramIndex++
+                + " OR LOWER(manufacturer.name) LIKE ?" + paramIndex++
+                + " OR LOWER(filamentType.name) LIKE ?" + paramIndex++ + ")");
+            params.add(searchLower);
+            params.add(searchLower);
+            params.add(searchLower);
+            params.add(searchLower);
+            params.add(searchLower);
+        }
+        
+        String whereClause = conditions.isEmpty() ? null : String.join(" AND ", conditions);
+        
+        // Get total count
+        long totalCount = whereClause != null 
+            ? Spool.count(whereClause, params.toArray())
+            : Spool.count();
+        
+        // Get paginated results
+        List<Spool> spools;
+        if (whereClause != null) {
+            spools = Spool.find(whereClause, params.toArray())
+                .page(panachePage)
+                .list();
+        } else {
+            spools = Spool.findAll()
+                .page(panachePage)
+                .list();
+        }
+        
+        List<SpoolDTO> spoolDTOs = spools.stream()
             .map(SpoolDTO::from)
             .toList();
+        
+        // Return paginated response if pagination requested, otherwise return list for backward compatibility
+        if (pageSize > 0 && pageSize < totalCount) {
+            return Response.ok(
+                PagedResponse.of(spoolDTOs, page, pageSize, totalCount)
+            ).build();
+        } else {
+            return Response.ok(spoolDTOs).build();
+        }
     }
 
     @GET
@@ -144,6 +214,9 @@ public class SpoolResource {
         spool.colorNumber = dto.colorNumber();
         spool.persist();
         
+        // Record creation in history
+        historyService.recordSpoolCreated(spool);
+        
         return Response.status(Response.Status.CREATED)
             .entity(SpoolDTO.from(spool))
             .build();
@@ -188,6 +261,8 @@ public class SpoolResource {
             spool.manufacturer = manufacturer;
         }
         
+        // Track location change
+        String oldLocation = spool.getLocationName();
         if (dto.storageLocationId() != null) {
             Location storageLocation = Location.findById(dto.storageLocationId());
             if (storageLocation != null) {
@@ -201,11 +276,22 @@ public class SpoolResource {
         if (dto.locationDetails() != null) {
             spool.locationDetails = dto.locationDetails();
         }
+        String newLocation = spool.getLocationName();
+        if (oldLocation != null && newLocation != null && !oldLocation.equals(newLocation)) {
+            historyService.recordLocationChange(spool, oldLocation, newLocation);
+        }
+        
+        // Track weight change
+        Double oldWeight = spool.currentWeightGrams;
         if (dto.initialWeightGrams() != null) {
             spool.initialWeightGrams = dto.initialWeightGrams();
         }
         if (dto.currentWeightGrams() != null) {
             spool.currentWeightGrams = dto.currentWeightGrams();
+        }
+        if (oldWeight != null && spool.currentWeightGrams != null && 
+            !oldWeight.equals(spool.currentWeightGrams)) {
+            historyService.recordWeightUpdate(spool, oldWeight, spool.currentWeightGrams);
         }
         if (dto.purchaseDate() != null) {
             spool.purchaseDate = dto.purchaseDate();
@@ -249,6 +335,9 @@ public class SpoolResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         
+        // Track old location
+        String oldLocation = spool.getLocationName();
+        
         // Prefer new location system
         if (storageLocationId != null) {
             Location storageLocation = Location.findById(storageLocationId);
@@ -269,6 +358,12 @@ public class SpoolResource {
             spool.locationDetails = details;
         }
         
+        // Record location change in history
+        String newLocation = spool.getLocationName();
+        if (oldLocation != null && newLocation != null && !oldLocation.equals(newLocation)) {
+            historyService.recordLocationChange(spool, oldLocation, newLocation);
+        }
+        
         return Response.ok(SpoolDTO.from(spool)).build();
     }
 
@@ -285,6 +380,7 @@ public class SpoolResource {
         }
         
         if (weight != null && weight > 0) {
+            Double oldWeight = spool.currentWeightGrams;
             spool.currentWeightGrams = weight;
             spool.lastUsedDate = LocalDate.now();
             
@@ -292,6 +388,9 @@ public class SpoolResource {
             if (weight < 50) {
                 spool.isEmpty = true;
             }
+            
+            // Record weight update in history
+            historyService.recordWeightUpdate(spool, oldWeight, weight);
         }
         
         return Response.ok(SpoolDTO.from(spool)).build();
@@ -306,10 +405,15 @@ public class SpoolResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         
-        spool.isEmpty = true;
-        spool.currentWeightGrams = 0.0;
-        spool.legacyLocation = SpoolLocation.EMPTY;
-        spool.storageLocation = null;
+        if (!spool.isEmpty) {
+            spool.isEmpty = true;
+            spool.currentWeightGrams = 0.0;
+            spool.legacyLocation = SpoolLocation.EMPTY;
+            spool.storageLocation = null;
+            
+            // Record in history
+            historyService.recordMarkedEmpty(spool);
+        }
         
         return Response.ok(SpoolDTO.from(spool)).build();
     }
@@ -331,7 +435,7 @@ public class SpoolResource {
     @GET
     @Path("/stats/by-location")
     public Response getStatsByLocation() {
-        List<Object[]> stats = Spool.find("SELECT s.location, COUNT(s) FROM Spool s WHERE s.isEmpty = false GROUP BY s.location")
+        List<Object[]> stats = Spool.find("SELECT s.legacyLocation, COUNT(s) FROM Spool s WHERE s.isEmpty = false AND s.legacyLocation IS NOT NULL GROUP BY s.legacyLocation")
             .project(Object[].class)
             .list();
         

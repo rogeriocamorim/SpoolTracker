@@ -243,11 +243,13 @@
   flex-shrink: 0;
 }
 
-.notesCard {
+.notesCard,
+.historyCard {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
 }
 
 .notesCard h3 {

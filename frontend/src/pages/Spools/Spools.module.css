@@ -442,6 +442,57 @@
   border-top: 1px solid var(--color-border);
 }
 
+.errorText {
+  font-size: 0.8125rem;
+  color: var(--color-danger);
+  margin-top: var(--spacing-xs);
+  display: block;
+}
+
+/* Bulk Actions */
+.bulkActionsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.bulkActionsText {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.bulkActionsButtons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.checkboxButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  transition: color 0.2s ease;
+}
+
+.checkboxButton:hover {
+  color: var(--color-accent-primary);
+}
+
+.checkboxButton:focus {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .deleteConfirm {
   display: flex;
   flex-direction: column;

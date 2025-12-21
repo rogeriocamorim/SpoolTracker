@@ -10,47 +10,47 @@ export const filamentTypesApi = {
     if (filters?.materialId) params.append('materialId', String(filters.materialId));
     if (filters?.manufacturerId) params.append('manufacturerId', String(filters.manufacturerId));
     
-    const { data } = await apiClient.get(`/api/filament-types?${params.toString()}`);
+    const { data } = await apiClient.get(`/filament-types?${params.toString()}`);
     return data;
   },
 
   getById: async (id: number): Promise<FilamentType> => {
-    const { data } = await apiClient.get(`/api/filament-types/${id}`);
+    const { data } = await apiClient.get(`/filament-types/${id}`);
     return data;
   },
 
   create: async (filamentType: Omit<FilamentType, 'id' | 'colors' | 'materialName' | 'manufacturerName'>): Promise<FilamentType> => {
-    const { data } = await apiClient.post('/api/filament-types', filamentType);
+    const { data } = await apiClient.post('/filament-types', filamentType);
     return data;
   },
 
   update: async (id: number, filamentType: Omit<FilamentType, 'id' | 'colors' | 'materialName' | 'manufacturerName'>): Promise<FilamentType> => {
-    const { data } = await apiClient.put(`/api/filament-types/${id}`, filamentType);
+    const { data } = await apiClient.put(`/filament-types/${id}`, filamentType);
     return data;
   },
 
   delete: async (id: number): Promise<void> => {
-    await apiClient.delete(`/api/filament-types/${id}`);
+    await apiClient.delete(`/filament-types/${id}`);
   },
 
   // Colors
   getColors: async (typeId: number): Promise<FilamentColor[]> => {
-    const { data } = await apiClient.get(`/api/filament-types/${typeId}/colors`);
+    const { data } = await apiClient.get(`/filament-types/${typeId}/colors`);
     return data;
   },
 
   addColor: async (typeId: number, color: Omit<FilamentColor, 'id' | 'filamentTypeId'>): Promise<FilamentColor> => {
-    const { data } = await apiClient.post(`/api/filament-types/${typeId}/colors`, color);
+    const { data } = await apiClient.post(`/filament-types/${typeId}/colors`, color);
     return data;
   },
 
   updateColor: async (typeId: number, colorId: number, color: Omit<FilamentColor, 'id' | 'filamentTypeId'>): Promise<FilamentColor> => {
-    const { data } = await apiClient.put(`/api/filament-types/${typeId}/colors/${colorId}`, color);
+    const { data } = await apiClient.put(`/filament-types/${typeId}/colors/${colorId}`, color);
     return data;
   },
 
   deleteColor: async (typeId: number, colorId: number): Promise<void> => {
-    await apiClient.delete(`/api/filament-types/${typeId}/colors/${colorId}`);
+    await apiClient.delete(`/filament-types/${typeId}/colors/${colorId}`);
   },
 };
 

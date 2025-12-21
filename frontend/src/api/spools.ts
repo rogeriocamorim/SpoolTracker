@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Spool, CreateSpoolDTO, UpdateSpoolDTO, SpoolLocation, LocationStats, MaterialStats } from '../types';
+import type { Spool, CreateSpoolDTO, UpdateSpoolDTO, SpoolLocation, LocationStats, MaterialStats, PagedResponse } from '../types';
 
 export const spoolsApi = {
   getAll: async (filters?: {
@@ -10,7 +10,10 @@ export const spoolsApi = {
     colorId?: number;
     isEmpty?: boolean;
     colorNumber?: string;
-  }): Promise<Spool[]> => {
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<Spool[] | PagedResponse<Spool>> => {
     const params = new URLSearchParams();
     if (filters?.location) params.append('location', filters.location);
     if (filters?.storageLocationId) params.append('storageLocationId', String(filters.storageLocationId));
@@ -19,28 +22,31 @@ export const spoolsApi = {
     if (filters?.colorId) params.append('colorId', String(filters.colorId));
     if (filters?.isEmpty !== undefined) params.append('isEmpty', String(filters.isEmpty));
     if (filters?.colorNumber) params.append('colorNumber', filters.colorNumber);
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.page !== undefined) params.append('page', String(filters.page));
+    if (filters?.pageSize !== undefined) params.append('pageSize', String(filters.pageSize));
     
-    const { data } = await apiClient.get(`/api/spools?${params.toString()}`);
+    const { data } = await apiClient.get(`/spools?${params.toString()}`);
     return data;
   },
 
   getById: async (id: number): Promise<Spool> => {
-    const { data } = await apiClient.get(`/api/spools/${id}`);
+    const { data } = await apiClient.get(`/spools/${id}`);
     return data;
   },
 
   getByUid: async (uid: string): Promise<Spool> => {
-    const { data } = await apiClient.get(`/api/spools/uid/${uid}`);
+    const { data } = await apiClient.get(`/spools/uid/${uid}`);
     return data;
   },
 
   create: async (spool: CreateSpoolDTO): Promise<Spool> => {
-    const { data } = await apiClient.post('/api/spools', spool);
+    const { data } = await apiClient.post('/spools', spool);
     return data;
   },
 
   update: async (id: number, spool: UpdateSpoolDTO): Promise<Spool> => {
-    const { data } = await apiClient.put(`/api/spools/${id}`, spool);
+    const { data } = await apiClient.put(`/spools/${id}`, spool);
     return data;
   },
 
@@ -49,36 +55,36 @@ export const spoolsApi = {
     if (location) params.append('location', location);
     if (storageLocationId) params.append('storageLocationId', String(storageLocationId));
     if (details) params.append('details', details);
-    const { data } = await apiClient.patch(`/api/spools/${id}/location?${params.toString()}`);
+    const { data } = await apiClient.patch(`/spools/${id}/location?${params.toString()}`);
     return data;
   },
 
   moveToLocation: async (id: number, storageLocationId: number): Promise<Spool> => {
-    const { data } = await apiClient.patch(`/api/spools/${id}/location?storageLocationId=${storageLocationId}`);
+    const { data } = await apiClient.patch(`/spools/${id}/location?storageLocationId=${storageLocationId}`);
     return data;
   },
 
   updateWeight: async (id: number, weight: number): Promise<Spool> => {
-    const { data } = await apiClient.patch(`/api/spools/${id}/weight?weight=${weight}`);
+    const { data } = await apiClient.patch(`/spools/${id}/weight?weight=${weight}`);
     return data;
   },
 
   markEmpty: async (id: number): Promise<Spool> => {
-    const { data } = await apiClient.patch(`/api/spools/${id}/empty`);
+    const { data } = await apiClient.patch(`/spools/${id}/empty`);
     return data;
   },
 
   delete: async (id: number): Promise<void> => {
-    await apiClient.delete(`/api/spools/${id}`);
+    await apiClient.delete(`/spools/${id}`);
   },
 
   getStatsByLocation: async (): Promise<LocationStats[]> => {
-    const { data } = await apiClient.get('/api/spools/stats/by-location');
+    const { data } = await apiClient.get('/spools/stats/by-location');
     return data;
   },
 
   getStatsByMaterial: async (): Promise<MaterialStats[]> => {
-    const { data } = await apiClient.get('/api/spools/stats/by-material');
+    const { data } = await apiClient.get('/spools/stats/by-material');
     return data;
   },
 };

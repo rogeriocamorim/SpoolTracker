@@ -3,12 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, MapPin, Weight, Package, QrCode, Edit, Trash2,
-  Thermometer, ExternalLink, Circle, Plus
+  Thermometer, ExternalLink, Circle, Plus, Search
 } from 'lucide-react';
 import { spoolsApi, filamentTypesApi } from '../../api';
 import { SpoolLabel } from '../../components/SpoolLabel';
 import { Button, Badge, Modal, Select, Input } from '../../components/ui';
-import type { Spool, SpoolLocation, CreateSpoolDTO } from '../../types';
+import type { Spool, SpoolLocation, CreateSpoolDTO, PagedResponse } from '../../types';
 import styles from './ColorDetail.module.css';
 
 const locationLabels: Record<string, string> = {
@@ -67,11 +67,17 @@ export function ColorDetail() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedSpool, setSelectedSpool] = useState<Spool | null>(null);
   const [formData, setFormData] = useState<Partial<CreateSpoolDTO>>({});
+  const [colorNumberSearch, setColorNumberSearch] = useState('');
 
-  const { data: allSpools = [], isLoading } = useQuery({
+  const { data: allSpoolsData, isLoading } = useQuery({
     queryKey: ['spools'],
     queryFn: () => spoolsApi.getAll(),
   });
+
+  // Handle both paginated and non-paginated responses
+  const allSpools: Spool[] = Array.isArray(allSpoolsData)
+    ? allSpoolsData
+    : (allSpoolsData as PagedResponse<Spool>)?.data || [];
 
   const { data: filamentType } = useQuery({
     queryKey: ['filament-types', typeId],
@@ -80,13 +86,24 @@ export function ColorDetail() {
   });
 
   // Filter spools by manufacturer, type, and color
-  const spools = useMemo(() => {
-    return allSpools.filter(s => 
+  const filteredSpools = useMemo(() => {
+    return allSpools.filter((s: Spool) => 
       s.manufacturerId === Number(manufacturerId) &&
       s.filamentTypeId === Number(typeId) &&
       s.colorId === Number(colorId)
     );
   }, [allSpools, manufacturerId, typeId, colorId]);
+
+  // Filter by color number search
+  const spools = useMemo(() => {
+    if (!colorNumberSearch.trim()) {
+      return filteredSpools;
+    }
+    const searchLower = colorNumberSearch.toLowerCase().trim();
+    return filteredSpools.filter((s: Spool) => 
+      s.colorNumber?.toLowerCase().includes(searchLower)
+    );
+  }, [filteredSpools, colorNumberSearch]);
 
   // Get representative spool for color info
   const representativeSpool = spools[0];
@@ -99,11 +116,11 @@ export function ColorDetail() {
 
   // Aggregate stats
   const stats = useMemo(() => {
-    const totalWeight = spools.reduce((sum, s) => sum + (s.currentWeightGrams ?? 0), 0);
-    const totalInitialWeight = spools.reduce((sum, s) => sum + (s.initialWeightGrams ?? 0), 0);
+    const totalWeight = spools.reduce((sum: number, s: Spool) => sum + (s.currentWeightGrams ?? 0), 0);
+    const totalInitialWeight = spools.reduce((sum: number, s: Spool) => sum + (s.initialWeightGrams ?? 0), 0);
     const avgRemaining = totalInitialWeight > 0 ? (totalWeight / totalInitialWeight) * 100 : 0;
     
-    const locationCounts = spools.reduce((acc, s) => {
+    const locationCounts = spools.reduce((acc: Record<string, number>, s: Spool) => {
       const locKey = s.storageLocationName || s.location || 'Unknown';
       acc[locKey] = (acc[locKey] || 0) + 1;
       return acc;
@@ -363,9 +380,39 @@ export function ColorDetail() {
 
         {/* Spools List */}
         <div className={styles.spoolsSection}>
-          <h3>Individual Spools ({stats.spoolCount})</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <h3>Individual Spools ({spools.length}{colorNumberSearch ? ` of ${filteredSpools.length}` : ''})</h3>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: '1', maxWidth: '300px', minWidth: '200px' }}>
+              <Search size={18} style={{ color: 'var(--color-text-muted)' }} />
+              <Input
+                placeholder="Search by color number..."
+                value={colorNumberSearch}
+                onChange={(e) => setColorNumberSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+            </div>
+          </div>
           <div className={styles.spoolsList}>
-            {spools.map(spool => {
+            {spools.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+                {colorNumberSearch ? (
+                  <>
+                    <p>No spools found with color number "{colorNumberSearch}"</p>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      onClick={() => setColorNumberSearch('')}
+                      style={{ marginTop: '0.5rem' }}
+                    >
+                      Clear search
+                    </Button>
+                  </>
+                ) : (
+                  <p>No spools found for this color</p>
+                )}
+              </div>
+            ) : (
+              spools.map((spool: Spool) => {
               const remaining = spool.remainingPercentage ?? 
                 (spool.initialWeightGrams && spool.currentWeightGrams 
                   ? (spool.currentWeightGrams / spool.initialWeightGrams) * 100 
@@ -418,7 +465,12 @@ export function ColorDetail() {
                   )}
 
                   <div className={styles.spoolDetails}>
-                    <span className={styles.spoolId}>{spool.uid.slice(0, 8)}...</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span className={styles.spoolId}>{spool.uid.slice(0, 8)}...</span>
+                      {spool.colorNumber && (
+                        <Badge variant="info" size="sm">#{spool.colorNumber}</Badge>
+                      )}
+                    </div>
                     {spool.notes && <span className={styles.spoolNotes}>{spool.notes}</span>}
                   </div>
 
@@ -435,7 +487,8 @@ export function ColorDetail() {
                   </div>
                 </div>
               );
-            })}
+              })
+            )}
           </div>
         </div>
       </div>

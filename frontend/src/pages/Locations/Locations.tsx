@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   Plus, MapPin, Package, Edit, Trash2, 
   ChevronRight, ChevronDown, Eye, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { locationsApi } from '../../api';
 import { Button, Input, Select, Modal } from '../../components/ui';
+import { createLocationSchema, updateLocationSchema, type CreateLocationFormData, type UpdateLocationFormData } from '../../schemas/location';
 import type { Location } from '../../types';
 import styles from './Locations.module.css';
 
@@ -74,10 +77,17 @@ export function Locations() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   
-  // Form state
-  const [formData, setFormData] = useState<Partial<Location>>({
-    isActive: true,
-    sortOrder: 0,
+  // Form state with react-hook-form
+  const createForm = useForm<CreateLocationFormData>({
+    resolver: zodResolver(createLocationSchema) as any,
+    defaultValues: {
+      isActive: true,
+      sortOrder: 0,
+    },
+  });
+
+  const editForm = useForm<UpdateLocationFormData>({
+    resolver: zodResolver(updateLocationSchema) as any,
   });
 
   const { data: locations = [], isLoading } = useQuery({
@@ -128,12 +138,12 @@ export function Locations() {
   });
 
   const resetForm = () => {
-    setFormData({ isActive: true, sortOrder: 0 });
+    createForm.reset({ isActive: true, sortOrder: 0 });
   };
 
   const handleEdit = (location: Location) => {
     setSelectedLocation(location);
-    setFormData({
+    editForm.reset({
       name: location.name,
       description: location.description,
       locationType: location.locationType,
@@ -152,17 +162,13 @@ export function Locations() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleSubmitCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.name) {
-      createMutation.mutate(formData as Location);
-    }
+  const handleSubmitCreate = (data: CreateLocationFormData) => {
+    createMutation.mutate(data as Location);
   };
 
-  const handleSubmitEdit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitEdit = (data: UpdateLocationFormData) => {
     if (selectedLocation) {
-      updateMutation.mutate({ id: selectedLocation.id, data: formData });
+      updateMutation.mutate({ id: selectedLocation.id, data });
     }
   };
 
@@ -307,70 +313,125 @@ export function Locations() {
         title="Add New Location"
         size="md"
       >
-        <form onSubmit={handleSubmitCreate} className={styles.form}>
-          <Input
-            label="Name"
-            placeholder="e.g., AMS Slot 1, Rack A, Storage Box 1"
-            value={formData.name || ''}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
+        <form onSubmit={createForm.handleSubmit(handleSubmitCreate as any)} className={styles.form}>
+          <Controller
+            name="name"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Name"
+                placeholder="e.g., AMS Slot 1, Rack A, Storage Box 1"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Select
-              label="Location Type"
-              options={locationTypeOptions}
-              value={formData.locationType || ''}
-              onChange={(e) => {
-                const newType = e.target.value;
-                const autoCapacity = getCapacityForType(newType);
-                setFormData({ 
-                  ...formData, 
-                  locationType: newType,
-                  capacity: autoCapacity
-                });
-              }}
+            <Controller
+              name="locationType"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Location Type"
+                    options={locationTypeOptions}
+                    value={field.value || ''}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      const autoCapacity = getCapacityForType(newType);
+                      field.onChange(newType);
+                      createForm.setValue('capacity', autoCapacity);
+                    }}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
-            <Select
-              label="Parent Location"
-              options={[
-                { value: '', label: 'None (Root)' },
-                ...rootLocations.map(l => ({ value: l.id, label: l.name })),
-              ]}
-              value={formData.parentId || ''}
-              onChange={(e) => setFormData({ ...formData, parentId: e.target.value ? Number(e.target.value) : undefined })}
+            <Controller
+              name="parentId"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Parent Location"
+                    options={[
+                      { value: '', label: 'None (Root)' },
+                      ...rootLocations.map(l => ({ value: l.id, label: l.name })),
+                    ]}
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
           </div>
 
-          <Input
-            label="Description"
-            placeholder="Optional description"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          <Controller
+            name="description"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Description"
+                placeholder="Optional description"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Input
-              label="Capacity (spools)"
-              type="number"
-              placeholder={isCapacityAutoManaged(formData.locationType) ? "Auto-set based on type" : "Leave empty for unlimited"}
-              value={formData.capacity || ''}
-              onChange={(e) => {
-                if (!isCapacityAutoManaged(formData.locationType)) {
-                  setFormData({ ...formData, capacity: e.target.value ? Number(e.target.value) : undefined });
-                }
+            <Controller
+              name="capacity"
+              control={createForm.control}
+              render={({ field, fieldState }) => {
+                const locationType = createForm.watch('locationType');
+                const isAutoManaged = isCapacityAutoManaged(locationType);
+                return (
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      label="Capacity (spools)"
+                      type="number"
+                      placeholder={isAutoManaged ? "Auto-set based on type" : "Leave empty for unlimited"}
+                      {...field}
+                      value={field.value || ''}
+                      onChange={(e) => {
+                        if (!isAutoManaged) {
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined);
+                        }
+                      }}
+                      disabled={isAutoManaged}
+                      helperText={isAutoManaged 
+                        ? `${locationType === 'AMS' || locationType === 'AMS_2_PRO' || locationType === 'AMS_LITTLE' ? '4 spots' : '1 spot'} (auto-set based on type)`
+                        : undefined
+                      }
+                      error={fieldState.error?.message}
+                    />
+                  </div>
+                );
               }}
-              disabled={isCapacityAutoManaged(formData.locationType)}
-              helperText={isCapacityAutoManaged(formData.locationType) 
-                ? `${formData.locationType === 'AMS' || formData.locationType === 'AMS_2_PRO' || formData.locationType === 'AMS_LITTLE' ? '4 spots' : '1 spot'} (auto-set based on type)`
-                : undefined
-              }
             />
-            <Select
-              label="Color"
-              options={colorOptions}
-              value={formData.color || ''}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+            <Controller
+              name="color"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Color"
+                    options={colorOptions}
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
           </div>
 
@@ -388,79 +449,134 @@ export function Locations() {
       {/* Edit Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => { setIsEditModalOpen(false); setSelectedLocation(null); resetForm(); }}
+        onClose={() => { setIsEditModalOpen(false); setSelectedLocation(null); editForm.reset(); }}
         title="Edit Location"
         size="md"
       >
-        <form onSubmit={handleSubmitEdit} className={styles.form}>
-          <Input
-            label="Name"
-            value={formData.name || ''}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
+        <form onSubmit={editForm.handleSubmit(handleSubmitEdit)} className={styles.form}>
+          <Controller
+            name="name"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Name"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Select
-              label="Location Type"
-              options={locationTypeOptions}
-              value={formData.locationType || ''}
-              onChange={(e) => {
-                const newType = e.target.value;
-                const autoCapacity = getCapacityForType(newType);
-                setFormData({ 
-                  ...formData, 
-                  locationType: newType,
-                  capacity: autoCapacity
-                });
-              }}
+            <Controller
+              name="locationType"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Location Type"
+                    options={locationTypeOptions}
+                    value={field.value || ''}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      const autoCapacity = getCapacityForType(newType);
+                      field.onChange(newType);
+                      editForm.setValue('capacity', autoCapacity);
+                    }}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
-            <Select
-              label="Parent Location"
-              options={[
-                { value: '', label: 'None (Root)' },
-                ...rootLocations
-                  .filter(l => l.id !== selectedLocation?.id)
-                  .map(l => ({ value: l.id, label: l.name })),
-              ]}
-              value={formData.parentId || ''}
-              onChange={(e) => setFormData({ ...formData, parentId: e.target.value ? Number(e.target.value) : undefined })}
+            <Controller
+              name="parentId"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Parent Location"
+                    options={[
+                      { value: '', label: 'None (Root)' },
+                      ...rootLocations
+                        .filter(l => l.id !== selectedLocation?.id)
+                        .map(l => ({ value: l.id, label: l.name })),
+                    ]}
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
           </div>
 
-          <Input
-            label="Description"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          <Controller
+            name="description"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Description"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Input
-              label="Capacity (spools)"
-              type="number"
-              placeholder={isCapacityAutoManaged(formData.locationType) ? "Auto-set based on type" : "Leave empty for unlimited"}
-              value={formData.capacity || ''}
-              onChange={(e) => {
-                if (!isCapacityAutoManaged(formData.locationType)) {
-                  setFormData({ ...formData, capacity: e.target.value ? Number(e.target.value) : undefined });
-                }
+            <Controller
+              name="capacity"
+              control={editForm.control}
+              render={({ field, fieldState }) => {
+                const locationType = editForm.watch('locationType');
+                const isAutoManaged = isCapacityAutoManaged(locationType);
+                return (
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      label="Capacity (spools)"
+                      type="number"
+                      placeholder={isAutoManaged ? "Auto-set based on type" : "Leave empty for unlimited"}
+                      {...field}
+                      value={field.value || ''}
+                      onChange={(e) => {
+                        if (!isAutoManaged) {
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined);
+                        }
+                      }}
+                      disabled={isAutoManaged}
+                      helperText={isAutoManaged 
+                        ? `${locationType === 'AMS' || locationType === 'AMS_2_PRO' || locationType === 'AMS_LITTLE' ? '4 spots' : '1 spot'} (auto-set based on type)`
+                        : undefined
+                      }
+                      error={fieldState.error?.message}
+                    />
+                  </div>
+                );
               }}
-              disabled={isCapacityAutoManaged(formData.locationType)}
-              helperText={isCapacityAutoManaged(formData.locationType) 
-                ? `${formData.locationType === 'AMS' || formData.locationType === 'AMS_2_PRO' || formData.locationType === 'AMS_LITTLE' ? '4 spots' : '1 spot'} (auto-set based on type)`
-                : undefined
-              }
             />
-            <Select
-              label="Color"
-              options={colorOptions}
-              value={formData.color || ''}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+            <Controller
+              name="color"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Color"
+                    options={colorOptions}
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedLocation(null); resetForm(); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedLocation(null); editForm.reset(); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={updateMutation.isPending}>

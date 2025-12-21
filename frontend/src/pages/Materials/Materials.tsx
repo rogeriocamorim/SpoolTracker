@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Edit, Trash2, Thermometer, Box } from 'lucide-react';
 import { materialsApi } from '../../api';
 import { Button, Card, CardHeader, CardTitle, CardContent, Input, Modal, Badge } from '../../components/ui';
+import { createMaterialSchema, updateMaterialSchema, type CreateMaterialFormData, type UpdateMaterialFormData } from '../../schemas/material';
 import type { Material } from '../../types';
 import styles from './Materials.module.css';
 
@@ -12,7 +15,19 @@ export function Materials() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
-  const [formData, setFormData] = useState<Partial<Material>>({});
+  
+  // Form state with react-hook-form
+  const createForm = useForm<CreateMaterialFormData>({
+    resolver: zodResolver(createMaterialSchema) as any,
+    defaultValues: {
+      requiresEnclosure: false,
+      requiresDryBox: false,
+    },
+  });
+
+  const editForm = useForm<UpdateMaterialFormData>({
+    resolver: zodResolver(updateMaterialSchema) as any,
+  });
 
   const { data: materials = [], isLoading } = useQuery({
     queryKey: ['materials'],
@@ -24,7 +39,7 @@ export function Materials() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsCreateModalOpen(false);
-      setFormData({});
+      createForm.reset();
     },
   });
 
@@ -35,7 +50,7 @@ export function Materials() {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsEditModalOpen(false);
       setSelectedMaterial(null);
-      setFormData({});
+      editForm.reset();
     },
   });
 
@@ -50,7 +65,7 @@ export function Materials() {
 
   const handleEdit = (material: Material) => {
     setSelectedMaterial(material);
-    setFormData(material);
+    editForm.reset(material);
     setIsEditModalOpen(true);
   };
 
@@ -59,19 +74,15 @@ export function Materials() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleSubmitCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.name) {
-      createMutation.mutate(formData as Omit<Material, 'id'>);
-    }
+  const handleSubmitCreate = (data: CreateMaterialFormData) => {
+    createMutation.mutate(data as Omit<Material, 'id'>);
   };
 
-  const handleSubmitEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedMaterial && formData.name) {
+  const handleSubmitEdit = (data: UpdateMaterialFormData) => {
+    if (selectedMaterial) {
       updateMutation.mutate({
         id: selectedMaterial.id,
-        data: formData as Omit<Material, 'id'>,
+        data: data as Omit<Material, 'id'>,
       });
     }
   };
@@ -156,81 +167,144 @@ export function Materials() {
       {/* Create Modal */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => { setIsCreateModalOpen(false); setFormData({}); }}
+        onClose={() => { setIsCreateModalOpen(false); createForm.reset(); }}
         title="Add New Material"
         size="md"
       >
-        <form onSubmit={handleSubmitCreate} className={styles.form}>
-          <Input
-            label="Name"
-            placeholder="e.g., PLA, PETG, ABS"
-            value={formData.name || ''}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
+        <form onSubmit={createForm.handleSubmit(handleSubmitCreate)} className={styles.form}>
+          <Controller
+            name="name"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Name"
+                placeholder="e.g., PLA, PETG, ABS"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
-          <Input
-            label="Description"
-            placeholder="Brief description of the material"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          <Controller
+            name="description"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Description"
+                placeholder="Brief description of the material"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Input
-              label="Min Nozzle Temp (°C)"
-              type="number"
-              placeholder="190"
-              value={formData.minNozzleTemp || ''}
-              onChange={(e) => setFormData({ ...formData, minNozzleTemp: Number(e.target.value) })}
+            <Controller
+              name="minNozzleTemp"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Min Nozzle Temp (°C)"
+                    type="number"
+                    placeholder="190"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Max Nozzle Temp (°C)"
-              type="number"
-              placeholder="230"
-              value={formData.maxNozzleTemp || ''}
-              onChange={(e) => setFormData({ ...formData, maxNozzleTemp: Number(e.target.value) })}
+            <Controller
+              name="maxNozzleTemp"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Max Nozzle Temp (°C)"
+                    type="number"
+                    placeholder="230"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.formRow}>
-            <Input
-              label="Min Bed Temp (°C)"
-              type="number"
-              placeholder="45"
-              value={formData.minBedTemp || ''}
-              onChange={(e) => setFormData({ ...formData, minBedTemp: Number(e.target.value) })}
+            <Controller
+              name="minBedTemp"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Min Bed Temp (°C)"
+                    type="number"
+                    placeholder="45"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Max Bed Temp (°C)"
-              type="number"
-              placeholder="60"
-              value={formData.maxBedTemp || ''}
-              onChange={(e) => setFormData({ ...formData, maxBedTemp: Number(e.target.value) })}
+            <Controller
+              name="maxBedTemp"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Max Bed Temp (°C)"
+                    type="number"
+                    placeholder="60"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.checkboxGroup}>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={formData.requiresEnclosure || false}
-                onChange={(e) => setFormData({ ...formData, requiresEnclosure: e.target.checked })}
-              />
-              <span>Requires Enclosure</span>
-            </label>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={formData.requiresDryBox || false}
-                onChange={(e) => setFormData({ ...formData, requiresDryBox: e.target.checked })}
-              />
-              <span>Requires Dry Box</span>
-            </label>
+            <Controller
+              name="requiresEnclosure"
+              control={createForm.control}
+              render={({ field }) => (
+                <label className={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={field.value || false}
+                    onChange={field.onChange}
+                  />
+                  <span>Requires Enclosure</span>
+                </label>
+              )}
+            />
+            <Controller
+              name="requiresDryBox"
+              control={createForm.control}
+              render={({ field }) => (
+                <label className={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={field.value || false}
+                    onChange={field.onChange}
+                  />
+                  <span>Requires Dry Box</span>
+                </label>
+              )}
+            />
           </div>
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsCreateModalOpen(false); setFormData({}); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsCreateModalOpen(false); createForm.reset(); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={createMutation.isPending}>
@@ -243,75 +317,138 @@ export function Materials() {
       {/* Edit Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => { setIsEditModalOpen(false); setSelectedMaterial(null); setFormData({}); }}
+        onClose={() => { setIsEditModalOpen(false); setSelectedMaterial(null); editForm.reset(); }}
         title="Edit Material"
         size="md"
       >
-        <form onSubmit={handleSubmitEdit} className={styles.form}>
-          <Input
-            label="Name"
-            value={formData.name || ''}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
+        <form onSubmit={editForm.handleSubmit(handleSubmitEdit)} className={styles.form}>
+          <Controller
+            name="name"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Name"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
-          <Input
-            label="Description"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          <Controller
+            name="description"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Description"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formRow}>
-            <Input
-              label="Min Nozzle Temp (°C)"
-              type="number"
-              value={formData.minNozzleTemp || ''}
-              onChange={(e) => setFormData({ ...formData, minNozzleTemp: Number(e.target.value) })}
+            <Controller
+              name="minNozzleTemp"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Min Nozzle Temp (°C)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Max Nozzle Temp (°C)"
-              type="number"
-              value={formData.maxNozzleTemp || ''}
-              onChange={(e) => setFormData({ ...formData, maxNozzleTemp: Number(e.target.value) })}
+            <Controller
+              name="maxNozzleTemp"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Max Nozzle Temp (°C)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.formRow}>
-            <Input
-              label="Min Bed Temp (°C)"
-              type="number"
-              value={formData.minBedTemp || ''}
-              onChange={(e) => setFormData({ ...formData, minBedTemp: Number(e.target.value) })}
+            <Controller
+              name="minBedTemp"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Min Bed Temp (°C)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Max Bed Temp (°C)"
-              type="number"
-              value={formData.maxBedTemp || ''}
-              onChange={(e) => setFormData({ ...formData, maxBedTemp: Number(e.target.value) })}
+            <Controller
+              name="maxBedTemp"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Max Bed Temp (°C)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.checkboxGroup}>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={formData.requiresEnclosure || false}
-                onChange={(e) => setFormData({ ...formData, requiresEnclosure: e.target.checked })}
-              />
-              <span>Requires Enclosure</span>
-            </label>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={formData.requiresDryBox || false}
-                onChange={(e) => setFormData({ ...formData, requiresDryBox: e.target.checked })}
-              />
-              <span>Requires Dry Box</span>
-            </label>
+            <Controller
+              name="requiresEnclosure"
+              control={editForm.control}
+              render={({ field }) => (
+                <label className={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={field.value || false}
+                    onChange={field.onChange}
+                  />
+                  <span>Requires Enclosure</span>
+                </label>
+              )}
+            />
+            <Controller
+              name="requiresDryBox"
+              control={editForm.control}
+              render={({ field }) => (
+                <label className={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={field.value || false}
+                    onChange={field.onChange}
+                  />
+                  <span>Requires Dry Box</span>
+                </label>
+              )}
+            />
           </div>
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedMaterial(null); setFormData({}); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedMaterial(null); editForm.reset(); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={updateMutation.isPending}>

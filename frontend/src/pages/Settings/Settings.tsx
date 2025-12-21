@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, RefreshCw, Database, Palette, Bell } from 'lucide-react';
 import { Button, Card, CardHeader, CardTitle, CardContent, Input } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
+import { showSuccessToast, showErrorToast } from '../../api/client';
+import { settingsApi } from '../../api';
 import styles from './Settings.module.css';
 
 export function Settings() {
@@ -10,12 +12,42 @@ export function Settings() {
   const [defaultCurrency, setDefaultCurrency] = useState('USD');
   const [lowStockThreshold, setLowStockThreshold] = useState('20');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load settings from API on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        setIsLoading(true);
+        const settings = await settingsApi.get();
+        setDefaultWeight(settings.defaultWeightGrams?.toString() || '1000');
+        setDefaultCurrency(settings.defaultCurrency || 'USD');
+        setLowStockThreshold(settings.lowStockThreshold?.toString() || '20');
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+        showErrorToast('Failed to load settings. Using defaults.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
-    // Simulate save - in a real app, this would persist to backend/localStorage
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsSaving(false);
+    try {
+      await settingsApi.update({
+        defaultWeightGrams: parseInt(defaultWeight, 10) || 1000,
+        defaultCurrency: defaultCurrency || 'USD',
+        lowStockThreshold: parseInt(lowStockThreshold, 10) || 20,
+      });
+      showSuccessToast('Settings saved successfully!');
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      showErrorToast('Failed to save settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

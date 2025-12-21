@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, MapPin, Weight, Package, QrCode, Thermometer, Circle, ExternalLink, Box } from 'lucide-react';
 import { spoolsApi } from '../../api';
 import { Button, Badge } from '../../components/ui';
+import { SpoolHistory } from '../../components/SpoolHistory';
+import type { Spool, PagedResponse } from '../../types';
 import styles from './SpoolDetail.module.css';
 
 const locationLabels: Record<string, string> = {
@@ -27,13 +29,18 @@ export function SpoolDetail() {
   const { uid } = useParams<{ uid: string }>();
   const navigate = useNavigate();
 
-  const { data: spools = [], isLoading, error } = useQuery({
+  const { data: spoolsData, isLoading, error } = useQuery({
     queryKey: ['spools'],
     queryFn: () => spoolsApi.getAll(),
   });
 
+  // Handle both paginated and non-paginated responses
+  const spools: Spool[] = Array.isArray(spoolsData)
+    ? spoolsData
+    : (spoolsData as PagedResponse<Spool>)?.data || [];
+
   // Find spool by UID
-  const spool = spools.find(s => s.uid === uid);
+  const spool = spools.find((s: Spool) => s.uid === uid);
 
   if (isLoading) {
     return (
@@ -269,6 +276,10 @@ export function SpoolDetail() {
             <p>{spool.notes}</p>
           </div>
         )}
+
+        <div className={styles.historyCard}>
+          <SpoolHistory spoolId={spool.id} />
+        </div>
       </div>
     </div>
   );

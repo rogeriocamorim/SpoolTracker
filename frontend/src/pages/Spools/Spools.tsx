@@ -1,17 +1,21 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useDebounce } from '../../hooks/useDebounce';
+import { createSpoolSchema, updateSpoolSchema, type CreateSpoolFormData, type UpdateSpoolFormData } from '../../schemas/spool';
 import { 
   Plus, Search, Grid, List, Package, ScanLine, 
   ChevronUp, ChevronDown, ExternalLink, QrCode, Edit, Trash2,
-  TableProperties, ArrowUpDown, Columns, Eye
+  TableProperties, ArrowUpDown, Columns, Eye, CheckSquare, Square, Move
 } from 'lucide-react';
 import { spoolsApi, materialsApi, manufacturersApi, filamentTypesApi, locationsApi } from '../../api';
 import { SpoolCard } from '../../components/SpoolCard';
 import { SpoolLabel } from '../../components/SpoolLabel';
 import { QRScanner } from '../../components/QRScanner';
-import { Button, Input, Select, Modal, Badge } from '../../components/ui';
-import type { Spool, SpoolLocation, SpoolType, CreateSpoolDTO } from '../../types';
+import { Button, Input, Select, Modal, Badge, Pagination } from '../../components/ui';
+import type { Spool, SpoolLocation, SpoolType, CreateSpoolDTO, PagedResponse } from '../../types';
 import styles from './Spools.module.css';
 
 const locationOptions = [
@@ -60,6 +64,19 @@ export function Spools() {
   const [sortField, setSortField] = useState<SortField>('brand');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [selectedSpoolIds, setSelectedSpoolIds] = useState<Set<number>>(new Set());
+  const [isBulkMoveModalOpen, setIsBulkMoveModalOpen] = useState(false);
+
+  // Debounce search terms
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedColorNumberSearch = useDebounce(colorNumberSearch, 300);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [locationFilter, debouncedColorNumberSearch, debouncedSearchTerm, materialFilter]);
   
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -72,19 +89,46 @@ export function Spools() {
   const [selectedSpool, setSelectedSpool] = useState<Spool | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<SpoolGroupData | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState<Partial<CreateSpoolDTO>>({
-    location: 'STORAGE',
+  // Form state with react-hook-form
+  const createForm = useForm<CreateSpoolFormData>({
+    resolver: zodResolver(createSpoolSchema) as any,
+    defaultValues: {
+      location: 'STORAGE',
+      spoolType: 'PLASTIC',
+    },
   });
+
+  const editForm = useForm<UpdateSpoolFormData>({
+    resolver: zodResolver(updateSpoolSchema) as any,
+  });
+
   const [selectedFilamentType, setSelectedFilamentType] = useState<number | null>(null);
 
-  const { data: spools = [], isLoading } = useQuery({
-    queryKey: ['spools', { location: locationFilter || undefined, colorNumber: colorNumberSearch || undefined }],
+  const { data: spoolsData, isLoading } = useQuery({
+    queryKey: ['spools', { 
+      location: locationFilter || undefined, 
+      colorNumber: debouncedColorNumberSearch || undefined,
+      search: debouncedSearchTerm || undefined,
+      page,
+      pageSize
+    }],
     queryFn: () => spoolsApi.getAll({ 
       location: locationFilter as SpoolLocation || undefined,
-      colorNumber: colorNumberSearch || undefined
+      colorNumber: debouncedColorNumberSearch || undefined,
+      search: debouncedSearchTerm || undefined,
+      page,
+      pageSize
     }),
   });
+
+  // Handle both paginated and non-paginated responses
+  const spools: Spool[] = Array.isArray(spoolsData) 
+    ? spoolsData 
+    : (spoolsData as PagedResponse<Spool>)?.data || [];
+  
+  const pagination = !Array.isArray(spoolsData) && (spoolsData as PagedResponse<Spool>)
+    ? (spoolsData as PagedResponse<Spool>)
+    : null;
 
   const { data: materials = [] } = useQuery({
     queryKey: ['materials'],
@@ -139,6 +183,35 @@ export function Spools() {
       queryClient.invalidateQueries({ queryKey: ['spools'] });
       setIsDeleteModalOpen(false);
       setSelectedSpool(null);
+      setSelectedSpoolIds(new Set());
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map(id => spoolsApi.delete(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spools'] });
+      setSelectedSpoolIds(new Set());
+    },
+  });
+
+  const bulkMoveMutation = useMutation({
+    mutationFn: async ({ ids, location, storageLocationId, details }: { 
+      ids: number[]; 
+      location?: SpoolLocation; 
+      storageLocationId?: number; 
+      details?: string;
+    }) => {
+      await Promise.all(ids.map(id => 
+        spoolsApi.updateLocation(id, location, storageLocationId, details)
+      ));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spools'] });
+      setSelectedSpoolIds(new Set());
+      setIsBulkMoveModalOpen(false);
     },
   });
 
@@ -153,13 +226,13 @@ export function Spools() {
   });
 
   const resetForm = () => {
-    setFormData({ location: 'STORAGE' });
+    createForm.reset({ location: 'STORAGE', spoolType: 'PLASTIC' });
     setSelectedFilamentType(null);
   };
 
   const handleEdit = (spool: Spool) => {
     setSelectedSpool(spool);
-    setFormData({
+    editForm.reset({
       filamentTypeId: spool.filamentTypeId,
       colorId: spool.colorId,
       manufacturerId: spool.manufacturerId,
@@ -170,6 +243,7 @@ export function Spools() {
       purchasePrice: spool.purchasePrice,
       purchaseCurrency: spool.purchaseCurrency,
       notes: spool.notes,
+      colorNumber: spool.colorNumber,
     });
     setSelectedFilamentType(spool.filamentTypeId);
     setIsEditModalOpen(true);
@@ -180,9 +254,12 @@ export function Spools() {
     setIsDeleteModalOpen(true);
   };
 
+  // Move form state (simple form, keeping manual state)
+  const [moveFormData, setMoveFormData] = useState<{ location?: SpoolLocation; locationDetails?: string }>({});
+
   const handleMove = (spool: Spool) => {
     setSelectedSpool(spool);
-    setFormData({ location: spool.location, locationDetails: spool.locationDetails });
+    setMoveFormData({ location: spool.location, locationDetails: spool.locationDetails });
     setIsMoveModalOpen(true);
   };
 
@@ -203,27 +280,87 @@ export function Spools() {
     }
   };
 
-  const handleSubmitCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.filamentTypeId && formData.colorId && formData.manufacturerId && formData.location) {
-      createMutation.mutate(formData as CreateSpoolDTO);
+  const toggleSpoolSelection = (spoolId: number) => {
+    setSelectedSpoolIds(prev => {
+      const next = new Set(prev);
+      if (next.has(spoolId)) {
+        next.delete(spoolId);
+      } else {
+        next.add(spoolId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSpoolIds.size === filteredSpools.length) {
+      setSelectedSpoolIds(new Set());
+    } else {
+      setSelectedSpoolIds(new Set(filteredSpools.map(s => s.id)));
     }
   };
 
-  const handleSubmitEdit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleBulkDelete = () => {
+    if (selectedSpoolIds.size > 0) {
+      bulkDeleteMutation.mutate(Array.from(selectedSpoolIds));
+    }
+  };
+
+  const handleBulkMove = (location?: SpoolLocation, storageLocationId?: number, details?: string) => {
+    if (selectedSpoolIds.size > 0) {
+      bulkMoveMutation.mutate({ 
+        ids: Array.from(selectedSpoolIds), 
+        location, 
+        storageLocationId, 
+        details 
+      });
+    }
+  };
+
+  const handleSubmitCreate = (data: CreateSpoolFormData) => {
+    // Get manufacturerId from filament type if not set
+    const filamentType = filamentTypes.find(ft => ft.id === data.filamentTypeId);
+    const manufacturerId = data.manufacturerId || filamentType?.manufacturerId;
+    
+    if (!manufacturerId) {
+      createForm.setError('manufacturerId', { message: 'Manufacturer is required' });
+      return;
+    }
+
+    // Convert form data to API DTO format
+    const dto: CreateSpoolDTO = {
+      filamentTypeId: data.filamentTypeId,
+      colorId: data.colorId,
+      manufacturerId: manufacturerId,
+      spoolType: data.spoolType,
+      storageLocationId: data.storageLocationId,
+      location: data.location,
+      locationDetails: data.locationDetails,
+      initialWeightGrams: data.initialWeightGrams,
+      currentWeightGrams: data.currentWeightGrams,
+      purchaseDate: data.purchaseDate,
+      openedDate: data.openedDate,
+      purchasePrice: data.purchasePrice,
+      purchaseCurrency: data.purchaseCurrency,
+      colorNumber: data.colorNumber,
+      notes: data.notes,
+    };
+    createMutation.mutate(dto);
+  };
+
+  const handleSubmitEdit = (data: UpdateSpoolFormData) => {
     if (selectedSpool) {
-      updateMutation.mutate({ id: selectedSpool.id, data: formData });
+      updateMutation.mutate({ id: selectedSpool.id, data });
     }
   };
 
   const handleSubmitMove = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedSpool && formData.location) {
+    if (selectedSpool && moveFormData.location) {
       updateLocationMutation.mutate({
         id: selectedSpool.id,
-        location: formData.location,
-        details: formData.locationDetails,
+        location: moveFormData.location,
+        details: moveFormData.locationDetails,
       });
     }
   };
@@ -477,9 +614,55 @@ export function Spools() {
         </div>
       ) : viewMode === 'table' ? (
         <div className={styles.tableWrapper}>
+          {selectedSpoolIds.size > 0 && (
+            <div className={styles.bulkActionsBar}>
+              <span className={styles.bulkActionsText}>
+                {selectedSpoolIds.size} spool{selectedSpoolIds.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className={styles.bulkActionsButtons}>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={() => setIsBulkMoveModalOpen(true)}
+                >
+                  <Move size={16} />
+                  Move ({selectedSpoolIds.size})
+                </Button>
+                <Button 
+                  variant="danger" 
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  isLoading={bulkDeleteMutation.isPending}
+                >
+                  <Trash2 size={16} />
+                  Delete ({selectedSpoolIds.size})
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setSelectedSpoolIds(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          )}
           <table className={styles.table}>
             <thead>
               <tr>
+                <th style={{ width: '40px' }}>
+                  <button
+                    className={styles.checkboxButton}
+                    onClick={toggleSelectAll}
+                    title={selectedSpoolIds.size === filteredSpools.length ? 'Deselect all' : 'Select all'}
+                  >
+                    {selectedSpoolIds.size === filteredSpools.length && filteredSpools.length > 0 ? (
+                      <CheckSquare size={18} />
+                    ) : (
+                      <Square size={18} />
+                    )}
+                  </button>
+                </th>
                 <SortHeader field="brand">BRAND</SortHeader>
                 <SortHeader field="material">MATERIAL</SortHeader>
                 <SortHeader field="type">TYPE</SortHeader>
@@ -493,9 +676,45 @@ export function Spools() {
               </tr>
             </thead>
             <tbody>
-              {sortedGroups.map((group) => (
+              {sortedGroups.map((group) => {
+                const allGroupSpoolsSelected = group.spools.every(s => selectedSpoolIds.has(s.id));
+                const someGroupSpoolsSelected = group.spools.some(s => selectedSpoolIds.has(s.id));
+                
+                return (
                 <>
                   <tr key={group.key} className={styles.groupRow}>
+                    <td>
+                      <button
+                        className={styles.checkboxButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (allGroupSpoolsSelected) {
+                            // Deselect all in group
+                            setSelectedSpoolIds(prev => {
+                              const next = new Set(prev);
+                              group.spools.forEach(s => next.delete(s.id));
+                              return next;
+                            });
+                          } else {
+                            // Select all in group
+                            setSelectedSpoolIds(prev => {
+                              const next = new Set(prev);
+                              group.spools.forEach(s => next.add(s.id));
+                              return next;
+                            });
+                          }
+                        }}
+                        title={allGroupSpoolsSelected ? 'Deselect group' : 'Select group'}
+                      >
+                        {allGroupSpoolsSelected ? (
+                          <CheckSquare size={18} />
+                        ) : someGroupSpoolsSelected ? (
+                          <CheckSquare size={18} style={{ opacity: 0.5 }} />
+                        ) : (
+                          <Square size={18} />
+                        )}
+                      </button>
+                    </td>
                     <td>{group.brand}</td>
                     <td>{group.material}</td>
                     <td>{group.type}</td>
@@ -573,13 +792,14 @@ export function Spools() {
                   </tr>
                   {expandedGroups.has(group.key) && (
                     <tr className={styles.expandedRow}>
-                      <td colSpan={10}>
+                      <td colSpan={11}>
                         <div className={styles.expandedContent}>
                           <div className={styles.spoolsList}>
                             <h4>Individual Spools ({group.spoolCount})</h4>
                             <table className={styles.nestedTable}>
                               <thead>
                                 <tr>
+                                  <th style={{ width: '40px' }}></th>
                                   <th>LOCATION</th>
                                   <th>REMAINING (G)</th>
                                   <th>SPOOL ID</th>
@@ -591,6 +811,22 @@ export function Spools() {
                               <tbody>
                                 {group.spools.map(spool => (
                                   <tr key={spool.id}>
+                                    <td>
+                                      <button
+                                        className={styles.checkboxButton}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleSpoolSelection(spool.id);
+                                        }}
+                                        title={selectedSpoolIds.has(spool.id) ? 'Deselect' : 'Select'}
+                                      >
+                                        {selectedSpoolIds.has(spool.id) ? (
+                                          <CheckSquare size={16} />
+                                        ) : (
+                                          <Square size={16} />
+                                        )}
+                                      </button>
+                                    </td>
                                     <td>{spool.location}{spool.locationDetails ? `: ${spool.locationDetails}` : ''}</td>
                                     <td>{spool.currentWeightGrams?.toFixed(0) ?? '-'}g</td>
                                     <td className={styles.spoolId}>{spool.uid}</td>
@@ -631,7 +867,8 @@ export function Spools() {
                     </tr>
                   )}
                 </>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           
@@ -656,6 +893,21 @@ export function Spools() {
         </div>
       )}
 
+      {/* Pagination */}
+      {pagination && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={pagination.totalItems}
+          totalPages={pagination.totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(0); // Reset to first page when changing page size
+          }}
+        />
+      )}
+
       {/* Create Modal */}
       <Modal
         isOpen={isCreateModalOpen}
@@ -663,96 +915,209 @@ export function Spools() {
         title="Add New Spool"
         size="md"
       >
-        <form onSubmit={handleSubmitCreate} className={styles.form}>
-          <Select
-            label="Filament Type"
-            options={getFilamentTypeOptions()}
-            value={formData.filamentTypeId || ''}
-            onChange={(e) => {
-              const typeId = Number(e.target.value);
-              setSelectedFilamentType(typeId);
-              const type = filamentTypes.find(ft => ft.id === typeId);
-              setFormData({
-                ...formData,
-                filamentTypeId: typeId,
-                manufacturerId: type?.manufacturerId,
-                colorId: undefined,
-              });
-            }}
-            placeholder="Select filament type"
+        <form onSubmit={createForm.handleSubmit(handleSubmitCreate)} className={styles.form}>
+          <Controller
+            name="filamentTypeId"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Filament Type"
+                  options={getFilamentTypeOptions()}
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(e) => {
+                    const typeId = Number(e.target.value);
+                    setSelectedFilamentType(typeId);
+                    const type = filamentTypes.find(ft => ft.id === typeId);
+                    field.onChange(typeId);
+                    createForm.setValue('manufacturerId', type?.manufacturerId ?? undefined);
+                    createForm.setValue('colorId', undefined as any);
+                  }}
+                  placeholder="Select filament type"
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
           />
 
           {selectedFilamentType && (
-            <Select
-              label="Color"
-              options={getColorOptions()}
-              value={formData.colorId || ''}
-              onChange={(e) => setFormData({ ...formData, colorId: Number(e.target.value) })}
-              placeholder="Select color"
+            <Controller
+              name="colorId"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div>
+                  <Select
+                    label="Color"
+                    options={getColorOptions()}
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                    placeholder="Select color"
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
             />
           )}
 
-          <Select
-            label="Spool Type"
-            options={spoolTypeOptions}
-            value={formData.spoolType || 'PLASTIC'}
-            onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as SpoolType })}
+          <Controller
+            name="spoolType"
+            control={createForm.control}
+            render={({ field }) => (
+              <Select
+                label="Spool Type"
+                options={spoolTypeOptions}
+                value={field.value || 'PLASTIC'}
+                onChange={(e) => field.onChange(e.target.value as SpoolType)}
+              />
+            )}
           />
 
-          <Select
-            label="Storage Location"
-            options={[
-              { value: '', label: 'Select a location...' },
-              ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
-            ]}
-            value={formData.storageLocationId || ''}
-            onChange={(e) => setFormData({ 
-              ...formData, 
-              storageLocationId: e.target.value ? Number(e.target.value) : undefined,
-              location: undefined // Clear legacy location when using new system
-            })}
+          <Controller
+            name="storageLocationId"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Storage Location"
+                  options={[
+                    { value: '', label: 'Select a location...' },
+                    ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+                  ]}
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(e) => {
+                    field.onChange(e.target.value ? Number(e.target.value) : undefined);
+                    createForm.setValue('location', undefined);
+                  }}
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
+          />
+
+          <Controller
+            name="location"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Legacy Location (if not using Storage Location)"
+                  options={locationOptions.slice(1)}
+                  value={field.value || ''}
+                  onChange={(e) => {
+                    field.onChange(e.target.value as SpoolLocation);
+                    createForm.setValue('storageLocationId', undefined);
+                  }}
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
           />
 
           <div className={styles.formRow}>
-            <Input
-              label="Initial Weight (g)"
-              type="number"
-              placeholder="1000"
-              value={formData.initialWeightGrams || ''}
-              onChange={(e) => setFormData({ ...formData, initialWeightGrams: Number(e.target.value) })}
+            <Controller
+              name="initialWeightGrams"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Initial Weight (g)"
+                    type="number"
+                    placeholder="1000"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Current Weight (g)"
-              type="number"
-              placeholder="1000"
-              value={formData.currentWeightGrams || ''}
-              onChange={(e) => setFormData({ ...formData, currentWeightGrams: Number(e.target.value) })}
+            <Controller
+              name="currentWeightGrams"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Current Weight (g)"
+                    type="number"
+                    placeholder="1000"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
           <div className={styles.formRow}>
-            <Input
-              label="Purchase Price"
-              type="number"
-              step="0.01"
-              placeholder="29.99"
-              value={formData.purchasePrice || ''}
-              onChange={(e) => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
+            <Controller
+              name="purchasePrice"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Purchase Price"
+                    type="number"
+                    step="0.01"
+                    placeholder="29.99"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Currency"
-              placeholder="USD"
-              value={formData.purchaseCurrency || ''}
-              onChange={(e) => setFormData({ ...formData, purchaseCurrency: e.target.value })}
+            <Controller
+              name="purchaseCurrency"
+              control={createForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Currency"
+                    placeholder="USD"
+                    {...field}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
-          <Input
-            label="Color Number"
-            placeholder="e.g., 5 (for customer ordering)"
-            value={formData.colorNumber || ''}
-            onChange={(e) => setFormData({ ...formData, colorNumber: e.target.value })}
-            helperText="Number from your color board for easy customer ordering"
+          <Controller
+            name="colorNumber"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Color Number"
+                placeholder="e.g., 5 (for customer ordering)"
+                {...field}
+                helperText="Number from your color board for easy customer ordering"
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+
+          <Controller
+            name="notes"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Notes"
+                placeholder="Any notes about this spool..."
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formActions}>
@@ -769,57 +1134,106 @@ export function Spools() {
       {/* Edit Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => { setIsEditModalOpen(false); setSelectedSpool(null); resetForm(); }}
+        onClose={() => { setIsEditModalOpen(false); setSelectedSpool(null); editForm.reset(); }}
         title="Edit Spool"
         size="md"
       >
-        <form onSubmit={handleSubmitEdit} className={styles.form}>
+        <form onSubmit={editForm.handleSubmit(handleSubmitEdit)} className={styles.form}>
           <div className={styles.formRow}>
-            <Input
-              label="Initial Weight (g)"
-              type="number"
-              value={formData.initialWeightGrams || ''}
-              onChange={(e) => setFormData({ ...formData, initialWeightGrams: Number(e.target.value) })}
+            <Controller
+              name="initialWeightGrams"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Initial Weight (g)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
-            <Input
-              label="Current Weight (g)"
-              type="number"
-              value={formData.currentWeightGrams || ''}
-              onChange={(e) => setFormData({ ...formData, currentWeightGrams: Number(e.target.value) })}
+            <Controller
+              name="currentWeightGrams"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Current Weight (g)"
+                    type="number"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+              )}
             />
           </div>
 
-          <Select
-            label="Location"
-            options={locationOptions.slice(1)}
-            value={formData.location || ''}
-            onChange={(e) => setFormData({ ...formData, location: e.target.value as SpoolLocation })}
+          <Controller
+            name="location"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Location"
+                  options={locationOptions.slice(1)}
+                  value={field.value || ''}
+                  onChange={(e) => field.onChange(e.target.value as SpoolLocation)}
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
           />
 
-          <Input
-            label="Location Details"
-            placeholder="e.g., Slot 1, Rack A-3"
-            value={formData.locationDetails || ''}
-            onChange={(e) => setFormData({ ...formData, locationDetails: e.target.value })}
+          <Controller
+            name="locationDetails"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Location Details"
+                placeholder="e.g., Slot 1, Rack A-3"
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
-          <Input
-            label="Color Number"
-            placeholder="e.g., 5 (for customer ordering)"
-            value={formData.colorNumber || ''}
-            onChange={(e) => setFormData({ ...formData, colorNumber: e.target.value })}
-            helperText="Number from your color board for easy customer ordering"
+          <Controller
+            name="colorNumber"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Color Number"
+                placeholder="e.g., 5 (for customer ordering)"
+                {...field}
+                helperText="Number from your color board for easy customer ordering"
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
-          <Input
-            label="Notes"
-            placeholder="Any notes about this spool..."
-            value={formData.notes || ''}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          <Controller
+            name="notes"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <Input
+                label="Notes"
+                placeholder="Any notes about this spool..."
+                {...field}
+                error={fieldState.error?.message}
+              />
+            )}
           />
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedSpool(null); resetForm(); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedSpool(null); editForm.reset(); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={updateMutation.isPending}>
@@ -878,15 +1292,15 @@ export function Spools() {
           <Select
             label="New Location"
             options={locationOptions.slice(1)}
-            value={formData.location || ''}
-            onChange={(e) => setFormData({ ...formData, location: e.target.value as SpoolLocation })}
+            value={moveFormData.location || ''}
+            onChange={(e) => setMoveFormData({ ...moveFormData, location: e.target.value as SpoolLocation })}
           />
 
           <Input
             label="Location Details"
             placeholder="e.g., Slot 1, Rack A-3"
-            value={formData.locationDetails || ''}
-            onChange={(e) => setFormData({ ...formData, locationDetails: e.target.value })}
+            value={moveFormData.locationDetails || ''}
+            onChange={(e) => setMoveFormData({ ...moveFormData, locationDetails: e.target.value })}
           />
 
           <div className={styles.formActions}>
@@ -895,6 +1309,42 @@ export function Spools() {
             </Button>
             <Button type="submit" isLoading={updateLocationMutation.isPending}>
               Move Spool
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Move Modal */}
+      <Modal
+        isOpen={isBulkMoveModalOpen}
+        onClose={() => { setIsBulkMoveModalOpen(false); }}
+        title={`Move ${selectedSpoolIds.size} Spool${selectedSpoolIds.size !== 1 ? 's' : ''}`}
+        size="sm"
+      >
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          handleBulkMove(moveFormData.location, undefined, moveFormData.locationDetails);
+        }} className={styles.form}>
+          <Select
+            label="New Location"
+            options={locationOptions.slice(1)}
+            value={moveFormData.location || ''}
+            onChange={(e) => setMoveFormData({ ...moveFormData, location: e.target.value as SpoolLocation })}
+          />
+
+          <Input
+            label="Location Details"
+            placeholder="e.g., Slot 1, Rack A-3"
+            value={moveFormData.locationDetails || ''}
+            onChange={(e) => setMoveFormData({ ...moveFormData, locationDetails: e.target.value })}
+          />
+
+          <div className={styles.formActions}>
+            <Button type="button" variant="secondary" onClick={() => { setIsBulkMoveModalOpen(false); }}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={bulkMoveMutation.isPending}>
+              Move {selectedSpoolIds.size} Spool{selectedSpoolIds.size !== 1 ? 's' : ''}
             </Button>
           </div>
         </form>

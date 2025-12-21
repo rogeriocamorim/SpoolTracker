@@ -4,4 +4,6 @@ export { Input } from './Input';
 export { Select } from './Select';
 export { Badge } from './Badge';
 export { Modal } from './Modal';
+export { Pagination } from './Pagination';
+export type { PaginationProps } from './Pagination';
 

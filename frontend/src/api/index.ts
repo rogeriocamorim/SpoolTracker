@@ -4,4 +4,6 @@ export { materialsApi } from './materials';
 export { manufacturersApi } from './manufacturers';
 export { filamentTypesApi } from './filamentTypes';
 export { locationsApi } from './locations';
+export { historyApi } from './history';
+export { settingsApi } from './settings';
 

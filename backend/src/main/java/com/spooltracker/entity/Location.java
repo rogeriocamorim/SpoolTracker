@@ -12,7 +12,13 @@ import java.util.List;
  * Examples: AMS Slot 1, Rack A-3, Storage Box 1, Printer 1, etc.
  */
 @Entity
-@Table(name = "location")
+@Table(
+    name = "location",
+    indexes = {
+        @Index(name = "idx_location_parent", columnList = "parent_id"),
+        @Index(name = "idx_location_type", columnList = "location_type")
+    }
+)
 public class Location extends PanacheEntity {
 
     @NotBlank(message = "Location name is required")

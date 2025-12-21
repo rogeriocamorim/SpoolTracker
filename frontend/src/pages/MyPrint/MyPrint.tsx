@@ -4,7 +4,7 @@ import { Upload, FileText, AlertCircle, Check, Weight, Clock, Printer } from 'lu
 import { spoolsApi } from '../../api';
 import { Button, Card, Modal, Select } from '../../components/ui';
 import { parsePrintFile, type ParsedPrintFile, type FilamentUsage } from '../../utils/printFileParser';
-import type { Spool } from '../../types';
+import type { Spool, PagedResponse } from '../../types';
 import styles from './MyPrint.module.css';
 
 interface FilamentAssignment {
@@ -23,13 +23,18 @@ export function MyPrint() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deductionComplete, setDeductionComplete] = useState(false);
 
-  const { data: spools = [] } = useQuery({
+  const { data: spoolsData } = useQuery({
     queryKey: ['spools'],
     queryFn: () => spoolsApi.getAll(),
   });
 
+  // Handle both paginated and non-paginated responses
+  const spools: Spool[] = Array.isArray(spoolsData)
+    ? spoolsData
+    : (spoolsData as PagedResponse<Spool>)?.data || [];
+
   // Filter to only show spools with remaining filament
-  const availableSpools = spools.filter(s => !s.isEmpty && (s.currentWeightGrams ?? 0) > 0);
+  const availableSpools = spools.filter((s: Spool) => !s.isEmpty && (s.currentWeightGrams ?? 0) > 0);
 
   const updateWeightMutation = useMutation({
     mutationFn: async ({ spoolId, newWeight }: { spoolId: number; newWeight: number }) => {
@@ -306,7 +311,7 @@ export function MyPrint() {
                           onChange={(e) => handleSpoolChange(index, e.target.value ? parseInt(e.target.value) : null)}
                           options={[
                             { value: '', label: 'Skip this filament' },
-                            ...availableSpools.map(spool => ({
+                            ...availableSpools.map((spool: Spool) => ({
                               value: spool.id.toString(),
                               label: `${spool.manufacturerName} - ${spool.colorName} (${spool.currentWeightGrams?.toFixed(0)}g remaining)`
                             }))
@@ -330,7 +335,7 @@ export function MyPrint() {
                     {assignment.selectedSpoolId && (
                       <div className={styles.preview}>
                         {(() => {
-                          const spool = spools.find(s => s.id === assignment.selectedSpoolId);
+                          const spool = spools.find((s: Spool) => s.id === assignment.selectedSpoolId);
                           if (!spool) return null;
                           const newWeight = Math.max(0, (spool.currentWeightGrams ?? 0) - assignment.deductWeight);
                           return (
@@ -401,7 +406,7 @@ export function MyPrint() {
           <p>You're about to deduct the following from your inventory:</p>
           <ul className={styles.confirmList}>
             {assignments.filter(a => a.selectedSpoolId).map((assignment, index) => {
-              const spool = spools.find(s => s.id === assignment.selectedSpoolId);
+              const spool = spools.find((s: Spool) => s.id === assignment.selectedSpoolId);
               return (
                 <li key={index}>
                   <strong>{assignment.deductWeight.toFixed(1)}g</strong> from{' '}
