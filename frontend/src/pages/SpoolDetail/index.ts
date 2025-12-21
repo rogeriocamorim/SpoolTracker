@@ -1,0 +1,2 @@
+export { SpoolDetail } from './SpoolDetail';
+

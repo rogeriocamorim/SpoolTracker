@@ -1,0 +1,2 @@
+export { SpoolLabel } from './SpoolLabel';
+

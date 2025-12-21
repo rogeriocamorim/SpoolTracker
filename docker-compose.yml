@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    container_name: spooltracker-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration
+      QUARKUS_DATASOURCE_DB_KIND: mariadb
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mariadb://192.168.2.22:3306/spooltracker
+      QUARKUS_DATASOURCE_USERNAME: root
+      QUARKUS_DATASOURCE_PASSWORD: "!#q1w2e3r4#!MariaDB"
+      # Hibernate
+      QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
+      # CORS - allow frontend
+      QUARKUS_HTTP_CORS: "true"
+      QUARKUS_HTTP_CORS_ORIGINS: "http://192.168.2.22:3000,http://localhost:3000,https://192.168.2.22:3000,https://localhost:3000"
+      QUARKUS_HTTP_CORS_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+      QUARKUS_HTTP_CORS_HEADERS: "Content-Type,Authorization"
+    networks:
+      - spooltracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/q/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    container_name: spooltracker-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    ports:
+      - "3000:80"
+      - "3443:443"
+    volumes:
+      - /opt/spooltracker/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - spooltracker-network
+    restart: unless-stopped
+
+networks:
+  spooltracker-network:
+    driver: bridge
+
+

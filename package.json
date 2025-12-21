@@ -1,0 +1,17 @@
+{
+  "name": "spooltracker",
+  "version": "1.0.0",
+  "description": "Filament spool management system for 3D printing",
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend\" -c \"green,blue\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && ./mvnw quarkus:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd frontend && npm install",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && ./mvnw package -DskipTests"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

@@ -1,0 +1,68 @@
+# Portainer Stack Configuration for SpoolTracker
+# 
+# DEPLOYMENT INSTRUCTIONS:
+# 1. Push this repo to a Git server (GitHub, GitLab, etc.)
+# 2. In Portainer: Stacks > Add Stack > Repository
+# 3. Enter your Git repository URL
+# 4. Set Compose path to: portainer-stack.yml
+# 5. Deploy!
+#
+# Or use the pre-built images option below.
+
+version: '3.8'
+
+services:
+  backend:
+    container_name: spooltracker-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration - Your MariaDB
+      QUARKUS_DATASOURCE_DB_KIND: mariadb
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mariadb://192.168.2.22:3306/spooltracker
+      QUARKUS_DATASOURCE_USERNAME: root
+      QUARKUS_DATASOURCE_PASSWORD: "!#q1w2e3r4#!MariaDB"
+      # Hibernate - use 'update' to preserve data, 'drop-and-create' to reset
+      QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
+      # CORS Configuration
+      QUARKUS_HTTP_CORS: "true"
+      QUARKUS_HTTP_CORS_ORIGINS: "http://192.168.2.22:3000,http://localhost:3000,http://spooltracker.local:3000"
+      QUARKUS_HTTP_CORS_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+      QUARKUS_HTTP_CORS_HEADERS: "Content-Type,Authorization"
+    networks:
+      - spooltracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/q/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  frontend:
+    container_name: spooltracker-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - spooltracker-network
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+networks:
+  spooltracker-network:
+    driver: bridge
+
+

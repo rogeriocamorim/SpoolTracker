@@ -1,0 +1,2 @@
+export { MyPrint } from './MyPrint';
+

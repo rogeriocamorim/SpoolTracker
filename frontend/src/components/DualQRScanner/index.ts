@@ -1,0 +1,2 @@
+export { DualQRScanner } from './DualQRScanner';
+

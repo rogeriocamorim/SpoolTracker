@@ -1,0 +1,4 @@
+export { QRScanner } from './QRScanner';
+
+
+
