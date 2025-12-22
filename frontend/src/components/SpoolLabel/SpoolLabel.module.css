@@ -112,13 +112,14 @@
 .content {
   display: flex;
   flex: 1;
-  gap: 12px;
+  gap: 8px;
   padding-top: 8px;
+  align-items: flex-start;
 }
 
 .qrContainer {
-  width: 100px;
-  height: 100px;
+  width: 140px;
+  height: 140px;
   flex-shrink: 0;
 }
 

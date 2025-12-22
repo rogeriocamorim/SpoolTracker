@@ -81,7 +81,7 @@
 }
 
 .brandHeader {
-  background: var(--color-accent-primary);
+  background: black;
   color: white;
   font-size: 13px;
   font-weight: 900;
@@ -99,11 +99,12 @@
   flex: 1;
   gap: 4px;
   padding-top: 2px;
+  align-items: flex-start;
 }
 
 .qrContainer {
-  width: 57px;
-  height: 57px;
+  width: 90px;
+  height: 90px;
   flex-shrink: 0;
 }
 
@@ -130,7 +131,7 @@
 }
 
 .typeBadge {
-  background: var(--color-accent-primary);
+  background: black;
   color: white;
   font-size: 9px;
   font-weight: 900;

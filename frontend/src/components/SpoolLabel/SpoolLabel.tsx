@@ -1,8 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Download, Printer, Settings2 } from 'lucide-react';
 import type { Spool } from '../../types';
 import { Button, Select } from '../ui';
+import { generateAmlFile, elementToBase64, downloadAmlFile } from '../../utils/labelife';
 import styles from './SpoolLabel.module.css';
 
 interface SpoolLabelProps {
@@ -180,8 +181,8 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
               padding-top: 1.5mm;
             }
             .qr-container {
-              width: 15mm;
-              height: 15mm;
+              width: 20mm;
+              height: 20mm;
               flex-shrink: 0;
             }
             .qr-container svg {
@@ -261,65 +262,45 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     };
   }, []);
 
-  const handleDownloadSVG = () => {
-    const svgElement = labelRef.current?.querySelector('.qrCode svg');
-    if (!svgElement) return;
+  const handleDownloadAML = async () => {
+    const labelElement = labelRef.current?.querySelector(`.${styles.label}`) as HTMLElement;
+    if (!labelElement) return;
 
-    // Build slot content for SVG
-    let yOffset = 28;
-    const svgSlotContent = slots
-      .map((slot) => {
-        const value = getSlotValue(slot);
-        if (!value) return '';
-        
-        const isTypeBadge = slot === 'type';
-        const isMono = slot === 'hexCode' || slot === 'uid';
-        
-        let content = '';
-        if (isTypeBadge) {
-          content = `<rect x="66" y="${yOffset}" width="80" height="14" rx="2" fill="black"/>
-  <text x="70" y="${yOffset + 11}" font-family="Arial Black, sans-serif" font-size="10" font-weight="900" fill="white">${value}</text>`;
-          yOffset += 16;
-        } else if (isMono) {
-          content = `<text x="66" y="${yOffset + 11}" font-family="Courier New, monospace" font-size="9" font-weight="bold" fill="#333">${value}</text>`;
-          yOffset += 14;
-        } else {
-          content = `<text x="66" y="${yOffset + 11}" font-family="Arial Black, sans-serif" font-size="10" font-weight="900" fill="black">${value}</text>`;
-          yOffset += 14;
-        }
-        return content;
-      })
-      .filter(Boolean)
-      .join('\n  ');
-
-    const labelSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="151" height="113" viewBox="0 0 151 113">
-  <rect width="151" height="113" fill="white" rx="5" stroke="#ccc" stroke-width="1"/>
-  
-  <!-- Brand Header -->
-  <rect x="6" y="6" width="139" height="18" rx="3" fill="black"/>
-  <rect x="11" y="11" width="4" height="10" fill="white"/>
-  <rect x="16" y="11" width="4" height="10" fill="white"/>
-  <text x="24" y="20" font-family="Arial Black, sans-serif" font-size="13" font-weight="900" fill="white">${spool.manufacturerName}</text>
-  
-  <!-- QR Code placeholder area -->
-  <g transform="translate(8, 28) scale(0.95)">
-    ${svgElement.innerHTML}
-  </g>
-  
-  <!-- Info -->
-  ${svgSlotContent}
-</svg>`;
-
-    const blob = new Blob([labelSvg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `spool-label-${productCode || spool.uid.slice(-5)}.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Convert entire label to PNG base64
+    // Label size: 40mm x 30mm = 151px x 113px (at 96 DPI, 1mm = 3.7795px)
+    // The preview is scaled up (272px x 203px), so we need to capture at actual size
+    const labelWidth = 151;
+    const labelHeight = 113;
+    
+    // Create a temporary container with actual size for rendering
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.width = `${labelWidth}px`;
+    tempContainer.style.height = `${labelHeight}px`;
+    tempContainer.style.overflow = 'hidden';
+    document.body.appendChild(tempContainer);
+    
+    // Clone the label and scale it down to actual size
+    const clonedLabel = labelElement.cloneNode(true) as HTMLElement;
+    const scale = labelWidth / 272; // 151/272 = 0.555
+    clonedLabel.style.width = '272px';
+    clonedLabel.style.height = '203px';
+    clonedLabel.style.transform = `scale(${scale})`;
+    clonedLabel.style.transformOrigin = 'top left';
+    tempContainer.appendChild(clonedLabel);
+    
+    try {
+      const imageBase64 = await elementToBase64(tempContainer, labelWidth, labelHeight);
+      
+      // Generate .aml file with the full label image
+      const labelName = `spool-label-${productCode || spool.uid.slice(-5)}.aml`;
+      const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
+      downloadAmlFile(amlContent, labelName);
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
   };
 
   return (
@@ -363,9 +344,9 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
             </div>
             <div className={styles.content}>
               <div className={`${styles.qrContainer} qrCode`}>
-                <QRCodeSVG
+                <QRCodeCanvas
                   value={spoolUrl}
-                  size={60}
+                  size={80}
                   level="M"
                   includeMargin={false}
                 />
@@ -392,9 +373,9 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       </div>
 
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={handleDownloadSVG}>
+        <Button variant="secondary" onClick={handleDownloadAML}>
           <Download size={16} />
-          Download SVG
+          Download .aml
         </Button>
         <Button onClick={handlePrint}>
           <Printer size={16} />
