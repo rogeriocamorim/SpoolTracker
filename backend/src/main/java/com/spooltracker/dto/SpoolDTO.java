@@ -59,19 +59,20 @@ public record SpoolDTO(
     Integer maxBedTemp
 ) {
     public static SpoolDTO from(Spool entity) {
+        // Add null checks for nested properties to prevent NullPointerException
         return new SpoolDTO(
             entity.id,
             entity.uid,
-            entity.filamentType.id,
-            entity.filamentType.name,
-            entity.filamentType.material.name,
-            entity.color.id,
-            entity.color.name,
-            entity.color.hexCode,
-            entity.color.productCode,
-            entity.manufacturer.id,
-            entity.manufacturer.name,
-            entity.manufacturer.logoUrl,
+            entity.filamentType != null ? entity.filamentType.id : null,
+            entity.filamentType != null ? entity.filamentType.name : null,
+            entity.filamentType != null && entity.filamentType.material != null ? entity.filamentType.material.name : null,
+            entity.color != null ? entity.color.id : null,
+            entity.color != null ? entity.color.name : null,
+            entity.color != null ? entity.color.hexCode : null,
+            entity.color != null ? entity.color.productCode : null,
+            entity.manufacturer != null ? entity.manufacturer.id : null,
+            entity.manufacturer != null ? entity.manufacturer.name : null,
+            entity.manufacturer != null ? entity.manufacturer.logoUrl : null,
             entity.legacyLocation,
             entity.locationDetails,
             entity.storageLocation != null ? entity.storageLocation.id : null,
@@ -92,12 +93,12 @@ public record SpoolDTO(
             entity.isEmpty,
             entity.createdAt,
             entity.updatedAt,
-            entity.filamentType.diameterMm,
-            entity.filamentType.densityGPerCm3,
-            entity.filamentType.minNozzleTemp,
-            entity.filamentType.maxNozzleTemp,
-            entity.filamentType.minBedTemp,
-            entity.filamentType.maxBedTemp
+            entity.filamentType != null ? entity.filamentType.diameterMm : null,
+            entity.filamentType != null ? entity.filamentType.densityGPerCm3 : null,
+            entity.filamentType != null ? entity.filamentType.minNozzleTemp : null,
+            entity.filamentType != null ? entity.filamentType.maxNozzleTemp : null,
+            entity.filamentType != null ? entity.filamentType.minBedTemp : null,
+            entity.filamentType != null ? entity.filamentType.maxBedTemp : null
         );
     }
 }

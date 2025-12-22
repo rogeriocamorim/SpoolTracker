@@ -2,12 +2,15 @@ package com.spooltracker.resource;
 
 import com.spooltracker.entity.Spool;
 import com.spooltracker.entity.SpoolHistory;
+import com.spooltracker.util.ResponseHelper;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,13 +18,14 @@ import java.util.stream.Collectors;
 @Produces(MediaType.APPLICATION_JSON)
 public class SpoolHistoryResource {
 
+    @Context
+    UriInfo uriInfo;
+
     @GET
     public Response getSpoolHistory(@PathParam("id") Long spoolId) {
         Spool spool = Spool.findById(spoolId);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity("Spool not found")
-                .build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
 
         List<SpoolHistory> history = SpoolHistory.findBySpoolOrderByCreatedAtDesc(spoolId);

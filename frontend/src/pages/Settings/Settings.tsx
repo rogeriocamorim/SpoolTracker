@@ -4,6 +4,7 @@ import { Button, Card, CardHeader, CardTitle, CardContent, Input } from '../../c
 import { useTheme } from '../../contexts/ThemeContext';
 import { showSuccessToast, showErrorToast } from '../../api/client';
 import { settingsApi } from '../../api';
+import { logger } from '../../utils/logger';
 import styles from './Settings.module.css';
 
 export function Settings() {
@@ -12,22 +13,18 @@ export function Settings() {
   const [defaultCurrency, setDefaultCurrency] = useState('USD');
   const [lowStockThreshold, setLowStockThreshold] = useState('20');
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Load settings from API on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        setIsLoading(true);
         const settings = await settingsApi.get();
         setDefaultWeight(settings.defaultWeightGrams?.toString() || '1000');
         setDefaultCurrency(settings.defaultCurrency || 'USD');
         setLowStockThreshold(settings.lowStockThreshold?.toString() || '20');
       } catch (error) {
-        console.error('Failed to load settings:', error);
+        logger.error('Failed to load settings', error instanceof Error ? error : new Error(String(error)), { component: 'Settings' });
         showErrorToast('Failed to load settings. Using defaults.');
-      } finally {
-        setIsLoading(false);
       }
     };
     loadSettings();
@@ -43,7 +40,7 @@ export function Settings() {
       });
       showSuccessToast('Settings saved successfully!');
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      logger.error('Failed to save settings', error instanceof Error ? error : new Error(String(error)), { component: 'Settings' });
       showErrorToast('Failed to save settings. Please try again.');
     } finally {
       setIsSaving(false);

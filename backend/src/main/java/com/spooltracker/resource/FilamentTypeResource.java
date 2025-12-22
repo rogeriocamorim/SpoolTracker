@@ -6,11 +6,15 @@ import com.spooltracker.entity.FilamentColor;
 import com.spooltracker.entity.FilamentType;
 import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Material;
+import com.spooltracker.util.ResponseHelper;
+import com.spooltracker.util.Sanitizer;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.util.List;
 
@@ -19,25 +23,40 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 public class FilamentTypeResource {
 
+    @Context
+    UriInfo uriInfo;
+
     @GET
     public List<FilamentTypeDTO> getAll(
         @QueryParam("materialId") Long materialId,
-        @QueryParam("manufacturerId") Long manufacturerId
+        @QueryParam("manufacturerId") Long manufacturerId,
+        @QueryParam("page") @DefaultValue("0") int page,
+        @QueryParam("pageSize") @DefaultValue("100") int pageSize
     ) {
+        io.quarkus.panache.common.Page panachePage = io.quarkus.panache.common.Page.of(page, pageSize);
         List<FilamentType> types;
         
         if (materialId != null && manufacturerId != null) {
-            types = FilamentType.findByMaterialAndManufacturer(materialId, manufacturerId);
+            // Use find with pagination
+            types = FilamentType.find("material.id = ?1 and manufacturer.id = ?2", materialId, manufacturerId)
+                .page(panachePage)
+                .list();
         } else if (materialId != null) {
-            types = FilamentType.findByMaterial(materialId);
+            types = FilamentType.find("material.id = ?1", materialId)
+                .page(panachePage)
+                .list();
         } else if (manufacturerId != null) {
-            types = FilamentType.findByManufacturer(manufacturerId);
+            types = FilamentType.find("manufacturer.id = ?1", manufacturerId)
+                .page(panachePage)
+                .list();
         } else {
-            types = FilamentType.listAll();
+            types = FilamentType.findAll()
+                .page(panachePage)
+                .list();
         }
         
         return types.stream()
-            .map(FilamentTypeDTO::from)
+            .map(FilamentTypeDTO::fromWithoutColors)
             .toList();
     }
 
@@ -46,7 +65,7 @@ public class FilamentTypeResource {
     public Response getById(@PathParam("id") Long id) {
         FilamentType type = FilamentType.findById(id);
         if (type == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Filament type not found", uriInfo);
         }
         return Response.ok(FilamentTypeDTO.from(type)).build();
     }
@@ -56,21 +75,17 @@ public class FilamentTypeResource {
     public Response create(@Valid FilamentTypeDTO dto) {
         Material material = Material.findById(dto.materialId());
         if (material == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Material not found")
-                .build();
+            return ResponseHelper.badRequest("Material not found", uriInfo);
         }
         
         Manufacturer manufacturer = Manufacturer.findById(dto.manufacturerId());
         if (manufacturer == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Manufacturer not found")
-                .build();
+            return ResponseHelper.badRequest("Manufacturer not found", uriInfo);
         }
         
         FilamentType type = new FilamentType();
-        type.name = dto.name();
-        type.description = dto.description();
+        type.name = Sanitizer.sanitize(dto.name());
+        type.description = Sanitizer.sanitizeWithLineBreaks(dto.description());
         type.material = material;
         type.manufacturer = manufacturer;
         type.minNozzleTemp = dto.minNozzleTemp();
@@ -113,8 +128,8 @@ public class FilamentTypeResource {
             type.manufacturer = manufacturer;
         }
         
-        type.name = dto.name();
-        type.description = dto.description();
+        type.name = Sanitizer.sanitize(dto.name());
+        type.description = Sanitizer.sanitizeWithLineBreaks(dto.description());
         type.minNozzleTemp = dto.minNozzleTemp();
         type.maxNozzleTemp = dto.maxNozzleTemp();
         type.minBedTemp = dto.minBedTemp();
@@ -133,9 +148,7 @@ public class FilamentTypeResource {
         }
         
         if (!type.spools.isEmpty()) {
-            return Response.status(Response.Status.CONFLICT)
-                .entity("Cannot delete filament type with existing spools")
-                .build();
+            return ResponseHelper.conflict("Cannot delete filament type with existing spools", uriInfo);
         }
         
         type.delete();
@@ -148,7 +161,7 @@ public class FilamentTypeResource {
     public Response getColors(@PathParam("id") Long id) {
         FilamentType type = FilamentType.findById(id);
         if (type == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Filament type not found", uriInfo);
         }
         
         List<FilamentColorDTO> colors = type.colors.stream()
@@ -164,11 +177,11 @@ public class FilamentTypeResource {
     public Response addColor(@PathParam("id") Long id, @Valid FilamentColorDTO dto) {
         FilamentType type = FilamentType.findById(id);
         if (type == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Filament type not found", uriInfo);
         }
         
         FilamentColor color = new FilamentColor();
-        color.name = dto.name();
+        color.name = Sanitizer.sanitize(dto.name());
         color.hexCode = dto.hexCode().toUpperCase();
         color.filamentType = type;
         color.persist();
@@ -188,19 +201,15 @@ public class FilamentTypeResource {
     ) {
         FilamentType type = FilamentType.findById(typeId);
         if (type == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity("Filament type not found")
-                .build();
+            return ResponseHelper.notFound("Filament type not found", uriInfo);
         }
         
         FilamentColor color = FilamentColor.findById(colorId);
-        if (color == null || !color.filamentType.id.equals(typeId)) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity("Color not found")
-                .build();
+        if (color == null || color.filamentType == null || !color.filamentType.id.equals(typeId)) {
+            return ResponseHelper.notFound("Color not found", uriInfo);
         }
         
-        color.name = dto.name();
+        color.name = Sanitizer.sanitize(dto.name());
         color.hexCode = dto.hexCode().toUpperCase();
         
         return Response.ok(FilamentColorDTO.from(color)).build();
@@ -215,22 +224,16 @@ public class FilamentTypeResource {
     ) {
         FilamentType type = FilamentType.findById(typeId);
         if (type == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity("Filament type not found")
-                .build();
+            return ResponseHelper.notFound("Filament type not found", uriInfo);
         }
         
         FilamentColor color = FilamentColor.findById(colorId);
-        if (color == null || !color.filamentType.id.equals(typeId)) {
-            return Response.status(Response.Status.NOT_FOUND)
-                .entity("Color not found")
-                .build();
+        if (color == null || color.filamentType == null || !color.filamentType.id.equals(typeId)) {
+            return ResponseHelper.notFound("Color not found", uriInfo);
         }
         
         if (color.spools != null && !color.spools.isEmpty()) {
-            return Response.status(Response.Status.CONFLICT)
-                .entity("Cannot delete color with existing spools")
-                .build();
+            return ResponseHelper.conflict("Cannot delete color with existing spools", uriInfo);
         }
         
         color.delete();

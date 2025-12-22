@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download, Printer, Settings2 } from 'lucide-react';
 import type { Spool } from '../../types';
@@ -31,6 +31,7 @@ const spoolTypeLabels: Record<string, string> = {
 
 export function SpoolLabel({ spool }: SpoolLabelProps) {
   const labelRef = useRef<HTMLDivElement>(null);
+  const printTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   
   // Customizable slots - default configuration
@@ -98,6 +99,11 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow || !labelRef.current) return;
+    
+    // Clear any existing timeout
+    if (printTimeoutRef.current) {
+      clearTimeout(printTimeoutRef.current);
+    }
 
     const slotContent = slots
       .map((slot) => {
@@ -240,10 +246,20 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     printWindow.document.write(labelHtml);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => {
+    printTimeoutRef.current = setTimeout(() => {
       printWindow.print();
+      printTimeoutRef.current = null;
     }, 250);
   };
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (printTimeoutRef.current) {
+        clearTimeout(printTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleDownloadSVG = () => {
     const svgElement = labelRef.current?.querySelector('.qrCode svg');

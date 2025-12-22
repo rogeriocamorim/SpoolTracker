@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download, Printer, Settings2 } from 'lucide-react';
 import type { Location } from '../../types';
@@ -70,9 +70,16 @@ export function LocationLabel({ location }: LocationLabelProps) {
     setSlots(newSlots);
   };
 
+  const printTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow || !labelRef.current) return;
+    
+    // Clear any existing timeout
+    if (printTimeoutRef.current) {
+      clearTimeout(printTimeoutRef.current);
+    }
 
     const slotContent = slots
       .map((slot) => {
@@ -202,10 +209,20 @@ export function LocationLabel({ location }: LocationLabelProps) {
     printWindow.document.write(labelHtml);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => {
+    printTimeoutRef.current = setTimeout(() => {
       printWindow.print();
+      printTimeoutRef.current = null;
     }, 250);
   };
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (printTimeoutRef.current) {
+        clearTimeout(printTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleDownloadSVG = () => {
     const svgElement = labelRef.current?.querySelector('.qrCode svg');

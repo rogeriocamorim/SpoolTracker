@@ -218,15 +218,36 @@ export async function parseGCodeFile(file: File): Promise<ParsedPrintFile> {
 }
 
 /**
+ * Filament data structure from slice_info.config
+ */
+interface SliceInfoFilament {
+  color?: string;
+  color_code?: string;
+  type?: string;
+  name?: string;
+  used_g?: number;
+  used_m?: number;
+  product_code?: string;
+}
+
+/**
+ * Slice info config data structure
+ */
+interface SliceInfoConfig {
+  filament?: SliceInfoFilament[];
+  [key: string]: unknown;
+}
+
+/**
  * Parse slice_info.config from Bambu/Orca 3MF
  */
 function parseSliceInfoConfig(content: string, result: ParsedPrintFile): void {
   try {
     // This is often in a custom format, try JSON first
-    const data = JSON.parse(content);
+    const data = JSON.parse(content) as SliceInfoConfig;
     
     if (data.filament) {
-      data.filament.forEach((f: Record<string, unknown>) => {
+      data.filament.forEach((f: SliceInfoFilament) => {
         result.filamentUsages.push({
           color: f.color as string,
           colorHex: f.color_code as string,
@@ -241,11 +262,11 @@ function parseSliceInfoConfig(content: string, result: ParsedPrintFile): void {
     }
 
     if (data.print_time) {
-      result.printTime = data.print_time;
+      result.printTime = typeof data.print_time === 'number' ? data.print_time : undefined;
     }
 
     if (data.project_name) {
-      result.projectName = data.project_name;
+      result.projectName = typeof data.project_name === 'string' ? data.project_name : undefined;
     }
   } catch {
     // Not JSON, try line-by-line parsing

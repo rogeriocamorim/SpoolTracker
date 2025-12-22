@@ -2,11 +2,14 @@ package com.spooltracker.dto;
 
 import com.spooltracker.entity.Material;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record MaterialDTO(
     Long id,
     @NotBlank(message = "Material name is required")
+    @Size(max = 100, message = "Material name must be less than 100 characters")
     String name,
+    @Size(max = 500, message = "Description must be less than 500 characters")
     String description,
     Integer minNozzleTemp,
     Integer maxNozzleTemp,

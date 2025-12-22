@@ -16,7 +16,8 @@ import java.util.List;
     name = "location",
     indexes = {
         @Index(name = "idx_location_parent", columnList = "parent_id"),
-        @Index(name = "idx_location_type", columnList = "location_type")
+        @Index(name = "idx_location_type", columnList = "location_type"),
+        @Index(name = "idx_location_name", columnList = "name")
     }
 )
 public class Location extends PanacheEntity {

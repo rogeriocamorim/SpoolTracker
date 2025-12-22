@@ -4,6 +4,7 @@ import { Camera, X, AlertCircle, CheckCircle, Package, MapPin, RefreshCw } from 
 import { Button } from '../ui';
 import { spoolsApi } from '../../api';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '../../utils/logger';
 import styles from './DualQRScanner.module.css';
 
 interface DualQRScannerProps {
@@ -23,7 +24,11 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
   const scannerKey = useRef(0);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleScan = async (detectedCodes: any[]) => {
+  interface DetectedCode {
+    rawValue: string;
+  }
+
+  const handleScan = async (detectedCodes: DetectedCode[]) => {
     if (detectedCodes && detectedCodes.length > 0) {
       const scannedUrl = detectedCodes[0].rawValue;
       
@@ -43,7 +48,13 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
             setError(null);
           } else {
             setError('This QR code is not a spool label. Please scan a spool QR code first.');
-            setTimeout(() => setError(null), 3000);
+            if (errorTimeoutRef.current) {
+              clearTimeout(errorTimeoutRef.current);
+            }
+            errorTimeoutRef.current = setTimeout(() => {
+              setError(null);
+              errorTimeoutRef.current = null;
+            }, 3000);
           }
         } else if (state === 'scanning-location') {
           // Check if it's a location URL
@@ -61,13 +72,25 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
             await assignSpoolToLocation();
           } else {
             setError('This QR code is not a location label. Please scan a location QR code.');
-            setTimeout(() => setError(null), 3000);
+            if (errorTimeoutRef.current) {
+              clearTimeout(errorTimeoutRef.current);
+            }
+            errorTimeoutRef.current = setTimeout(() => {
+              setError(null);
+              errorTimeoutRef.current = null;
+            }, 3000);
           }
         }
       } catch (err) {
-        console.error('Error processing QR code:', err);
+        logger.error('Error processing QR code', err instanceof Error ? err : new Error(String(err)), { component: 'DualQRScanner', state });
         setError(err instanceof Error ? err.message : 'Failed to process QR code');
-        setTimeout(() => setError(null), 3000);
+        if (errorTimeoutRef.current) {
+          clearTimeout(errorTimeoutRef.current);
+        }
+        errorTimeoutRef.current = setTimeout(() => {
+          setError(null);
+          errorTimeoutRef.current = null;
+        }, 3000);
       }
     }
   };
@@ -92,25 +115,37 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
       setState('success');
       
       // Call success callback after a short delay
-      setTimeout(() => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+      successTimeoutRef.current = setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
+        successTimeoutRef.current = null;
       }, 2000);
     } catch (err) {
-      console.error('Error assigning spool to location:', err);
+      logger.error('Error assigning spool to location', err instanceof Error ? err : new Error(String(err)), { 
+        component: 'DualQRScanner',
+        spoolUid: scannedSpool?.uid,
+        locationId: scannedLocation?.id,
+      });
       setError(err instanceof Error ? err.message : 'Failed to assign spool to location');
       setState('error');
-      setTimeout(() => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+      errorTimeoutRef.current = setTimeout(() => {
         setState('scanning-location');
         setError(null);
+        errorTimeoutRef.current = null;
       }, 3000);
     }
   };
 
-  const handleError = (err: any) => {
-    console.error('QR Scanner error:', err);
+  const handleError = (err: Error | unknown) => {
+    logger.error('QR Scanner error', err instanceof Error ? err : new Error(String(err)), { component: 'DualQRScanner' });
     
-    const errorMessage = err?.message || String(err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
     
     // Only show error for actual permission/camera issues, not initialization warnings
     if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
@@ -145,10 +180,15 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
     scannerKey.current += 1;
   };
 
+  const successTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     return () => {
       if (errorTimeoutRef.current) {
         clearTimeout(errorTimeoutRef.current);
+      }
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
       }
     };
   }, []);

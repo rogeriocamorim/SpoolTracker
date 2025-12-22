@@ -4,6 +4,7 @@ import { Upload, FileText, AlertCircle, Check, Weight, Clock, Printer } from 'lu
 import { spoolsApi } from '../../api';
 import { Button, Card, Modal, Select } from '../../components/ui';
 import { parsePrintFile, type ParsedPrintFile, type FilamentUsage } from '../../utils/printFileParser';
+import { logger } from '../../utils/logger';
 import type { Spool, PagedResponse } from '../../types';
 import styles from './MyPrint.module.css';
 
@@ -92,7 +93,7 @@ export function MyPrint() {
       
       setAssignments(initialAssignments);
     } catch (error) {
-      console.error('Failed to parse file:', error);
+      logger.error('Failed to parse file', error instanceof Error ? error : new Error(String(error)), { component: 'MyPrint' });
     } finally {
       setIsProcessing(false);
     }

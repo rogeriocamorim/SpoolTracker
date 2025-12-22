@@ -42,8 +42,8 @@ export function FilamentTypes() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<FilamentType> }) =>
-      filamentTypesApi.update(id, data as any),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Omit<FilamentType, 'id' | 'colors' | 'materialName' | 'manufacturerName'>> }) =>
+      filamentTypesApi.update(id, data as Omit<FilamentType, 'id' | 'colors' | 'materialName' | 'manufacturerName'>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['filament-types'] });
       setIsEditModalOpen(false);
@@ -98,7 +98,7 @@ export function FilamentTypes() {
   const handleSubmitCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name && formData.materialId && formData.manufacturerId) {
-      createMutation.mutate(formData as any);
+      createMutation.mutate(formData as Omit<FilamentType, 'id' | 'colors' | 'materialName' | 'manufacturerName'>);
     }
   };
 

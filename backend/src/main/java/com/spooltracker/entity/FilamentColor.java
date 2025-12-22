@@ -9,7 +9,12 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 @Entity
-@Table(name = "filament_color")
+@Table(
+    name = "filament_color",
+    indexes = {
+        @Index(name = "idx_filament_color_name", columnList = "name")
+    }
+)
 public class FilamentColor extends PanacheEntity {
 
     @NotBlank(message = "Color name is required")

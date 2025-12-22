@@ -2,14 +2,18 @@ package com.spooltracker.dto;
 
 import com.spooltracker.entity.Location;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
 public record LocationDTO(
     Long id,
     @NotBlank(message = "Location name is required")
+    @Size(max = 100, message = "Location name must be less than 100 characters")
     String name,
+    @Size(max = 500, message = "Description must be less than 500 characters")
     String description,
+    @Size(max = 50, message = "Location type must be less than 50 characters")
     String locationType,
     Long parentId,
     String parentName,

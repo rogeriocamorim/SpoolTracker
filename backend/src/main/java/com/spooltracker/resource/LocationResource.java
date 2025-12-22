@@ -4,11 +4,15 @@ import com.spooltracker.dto.LocationDTO;
 import com.spooltracker.dto.SpoolDTO;
 import com.spooltracker.entity.Location;
 import com.spooltracker.entity.Spool;
+import com.spooltracker.util.ResponseHelper;
+import com.spooltracker.util.Sanitizer;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.util.List;
 
@@ -17,22 +21,47 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 public class LocationResource {
 
+    @Context
+    UriInfo uriInfo;
+
     @GET
     public List<LocationDTO> getAll(
             @QueryParam("type") String locationType,
             @QueryParam("parentId") Long parentId,
-            @QueryParam("activeOnly") @DefaultValue("true") boolean activeOnly
+            @QueryParam("activeOnly") @DefaultValue("true") boolean activeOnly,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("pageSize") @DefaultValue("100") int pageSize
     ) {
+        io.quarkus.panache.common.Page panachePage = io.quarkus.panache.common.Page.of(page, pageSize);
         List<Location> locations;
         
+        // Build query with proper parameter binding
         if (parentId != null) {
-            locations = Location.list("parent.id = ?1" + (activeOnly ? " and isActive = true" : "") + " order by sortOrder, name", parentId);
+            String query = "parent.id = ?1";
+            if (activeOnly) {
+                query += " and isActive = true";
+            }
+            query += " order by sortOrder, name";
+            locations = Location.find(query, parentId)
+                .page(panachePage)
+                .list();
         } else if (locationType != null) {
-            locations = Location.list("locationType = ?1" + (activeOnly ? " and isActive = true" : "") + " order by sortOrder, name", locationType);
+            String query = "locationType = ?1";
+            if (activeOnly) {
+                query += " and isActive = true";
+            }
+            query += " order by sortOrder, name";
+            locations = Location.find(query, locationType)
+                .page(panachePage)
+                .list();
         } else if (activeOnly) {
-            locations = Location.findActive();
+            locations = Location.find("isActive = true order by sortOrder, name")
+                .page(panachePage)
+                .list();
         } else {
-            locations = Location.listAll();
+            locations = Location.findAll()
+                .page(panachePage)
+                .list();
         }
         
         return locations.stream().map(LocationDTO::from).toList();
@@ -57,24 +86,24 @@ public class LocationResource {
 
     @GET
     @Path("/{id}")
-    public LocationDTO getById(@PathParam("id") Long id) {
+    public Response getById(@PathParam("id") Long id) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
-        return LocationDTO.fromWithChildren(location);
+        return Response.ok(LocationDTO.fromWithChildren(location)).build();
     }
 
     @GET
     @Path("/{id}/spools")
-    public List<SpoolDTO> getSpoolsAtLocation(@PathParam("id") Long id) {
+    public Response getSpoolsAtLocation(@PathParam("id") Long id) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         
         List<Spool> spools = Spool.findByStorageLocation(id);
-        return spools.stream().map(SpoolDTO::from).toList();
+        return Response.ok(spools.stream().map(SpoolDTO::from).toList()).build();
     }
 
     @POST
@@ -91,13 +120,13 @@ public class LocationResource {
     @PUT
     @Path("/{id}")
     @Transactional
-    public LocationDTO update(@PathParam("id") Long id, @Valid LocationDTO dto) {
+    public Response update(@PathParam("id") Long id, @Valid LocationDTO dto) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         updateLocationFromDTO(location, dto);
-        return LocationDTO.from(location);
+        return Response.ok(LocationDTO.from(location)).build();
     }
 
     @DELETE
@@ -106,18 +135,18 @@ public class LocationResource {
     public Response delete(@PathParam("id") Long id) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         
         // Check if there are spools at this location
         long spoolCount = location.getSpoolCount();
         if (spoolCount > 0) {
-            throw new BadRequestException("Cannot delete location with " + spoolCount + " spool(s). Move or delete spools first.");
+            return ResponseHelper.badRequest("Cannot delete location with " + spoolCount + " spool(s). Move or delete spools first.", uriInfo);
         }
         
         // Check if there are child locations
         if (location.children != null && !location.children.isEmpty()) {
-            throw new BadRequestException("Cannot delete location with child locations. Delete or move children first.");
+            return ResponseHelper.badRequest("Cannot delete location with child locations. Delete or move children first.", uriInfo);
         }
         
         location.delete();
@@ -127,60 +156,60 @@ public class LocationResource {
     @PATCH
     @Path("/{id}/deactivate")
     @Transactional
-    public LocationDTO deactivate(@PathParam("id") Long id) {
+    public Response deactivate(@PathParam("id") Long id) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         location.isActive = false;
-        return LocationDTO.from(location);
+        return Response.ok(LocationDTO.from(location)).build();
     }
 
     @PATCH
     @Path("/{id}/activate")
     @Transactional
-    public LocationDTO activate(@PathParam("id") Long id) {
+    public Response activate(@PathParam("id") Long id) {
         Location location = Location.findById(id);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         location.isActive = true;
-        return LocationDTO.from(location);
+        return Response.ok(LocationDTO.from(location)).build();
     }
 
     // Move a spool to this location
     @POST
     @Path("/{id}/spools/{spoolId}")
     @Transactional
-    public SpoolDTO moveSpoolToLocation(
+    public Response moveSpoolToLocation(
             @PathParam("id") Long locationId,
             @PathParam("spoolId") Long spoolId
     ) {
         Location location = Location.findById(locationId);
         if (location == null) {
-            throw new NotFoundException("Location not found");
+            return ResponseHelper.notFound("Location not found", uriInfo);
         }
         
         Spool spool = Spool.findById(spoolId);
         if (spool == null) {
-            throw new NotFoundException("Spool not found");
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         
         // Check capacity
         if (!location.hasCapacity()) {
-            throw new BadRequestException("Location is at full capacity (" + location.capacity + " spools)");
+            return ResponseHelper.badRequest("Location is at full capacity (" + location.capacity + " spools)", uriInfo);
         }
         
         spool.storageLocation = location;
         spool.legacyLocation = null; // Clear legacy location
         spool.locationDetails = null; // Clear old details
         
-        return SpoolDTO.from(spool);
+        return Response.ok(SpoolDTO.from(spool)).build();
     }
 
     private void updateLocationFromDTO(Location location, LocationDTO dto) {
-        location.name = dto.name();
-        location.description = dto.description();
+        location.name = Sanitizer.sanitize(dto.name());
+        location.description = Sanitizer.sanitizeWithLineBreaks(dto.description());
         location.locationType = dto.locationType();
         
         // Auto-set capacity based on location type
@@ -201,7 +230,7 @@ public class LocationResource {
         if (dto.parentId() != null) {
             Location parent = Location.findById(dto.parentId());
             if (parent == null) {
-                throw new BadRequestException("Parent location not found");
+                throw new jakarta.ws.rs.BadRequestException("Parent location not found");
             }
             location.parent = parent;
         } else {

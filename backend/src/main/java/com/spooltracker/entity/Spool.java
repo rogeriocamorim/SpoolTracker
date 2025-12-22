@@ -18,6 +18,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 @Entity
@@ -102,6 +103,9 @@ public class Spool extends PanacheEntity {
 
     // Price tracking
     public Double purchasePrice;
+    
+    @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be a 3-letter ISO 4217 code (e.g., USD, EUR, BRL)")
+    @Column(length = 3)
     public String purchaseCurrency;
 
     // Notes

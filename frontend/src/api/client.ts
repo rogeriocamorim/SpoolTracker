@@ -1,5 +1,6 @@
-import axios, { type AxiosError, type AxiosResponse } from 'axios';
+import axios, { type AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import toast from 'react-hot-toast';
+import { MAX_RETRY_ATTEMPTS, RETRY_DELAY_MS } from '../constants';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -33,16 +34,26 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<ApiError>) => {
-    const config = error.config as any;
+    // Axios doesn't export the full config type with retry, so we use a type assertion
+    // This is a known limitation of Axios types
+    interface AxiosRequestConfigWithRetry extends AxiosRequestConfig {
+      retry?: number;
+      __isRetryRequest?: boolean;
+    }
+    const config = error.config as AxiosRequestConfigWithRetry | undefined;
     
     // Retry logic for network errors and 5xx errors
-    if (!config || !config.retry) {
+    if (!config) {
+      return Promise.reject(error);
+    }
+    
+    if (!config.retry) {
       config.retry = 0;
     }
     
     const shouldRetry = 
       (!error.response || (error.response.status >= 500 && error.response.status < 600)) &&
-      config.retry < 3 &&
+      config.retry < MAX_RETRY_ATTEMPTS &&
       !config.__isRetryRequest;
     
     if (shouldRetry) {
@@ -50,7 +61,7 @@ apiClient.interceptors.response.use(
       config.__isRetryRequest = true;
       
       // Exponential backoff: 1s, 2s, 4s
-      const delay = Math.pow(2, config.retry - 1) * 1000;
+      const delay = Math.pow(2, config.retry - 1) * RETRY_DELAY_MS;
       
       await new Promise(resolve => setTimeout(resolve, delay));
       

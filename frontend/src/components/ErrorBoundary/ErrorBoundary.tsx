@@ -1,6 +1,7 @@
 import React, { Component, type ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '../ui';
+import { logger } from '../../utils/logger';
 import styles from './ErrorBoundary.module.css';
 
 interface Props {
@@ -29,7 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error', error, { 
+      component: 'ErrorBoundary',
+      componentStack: errorInfo.componentStack,
+    });
     this.setState({
       error,
       errorInfo,

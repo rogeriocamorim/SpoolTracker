@@ -2,13 +2,18 @@ package com.spooltracker.dto;
 
 import com.spooltracker.entity.Manufacturer;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record ManufacturerDTO(
     Long id,
     @NotBlank(message = "Manufacturer name is required")
+    @Size(max = 100, message = "Manufacturer name must be less than 100 characters")
     String name,
+    @Size(max = 500, message = "Description must be less than 500 characters")
     String description,
+    @Size(max = 500, message = "Website URL must be less than 500 characters")
     String website,
+    @Size(max = 500, message = "Logo URL must be less than 500 characters")
     String logoUrl
 ) {
     public static ManufacturerDTO from(Manufacturer entity) {

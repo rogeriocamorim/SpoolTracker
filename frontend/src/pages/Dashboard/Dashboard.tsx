@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Package, Layers, MapPin, Factory, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { spoolsApi, materialsApi, manufacturersApi } from '../../api';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '../../components/ui';
 import { BarChart, PieChart } from '../../components/Charts';
+import { LOW_STOCK_THRESHOLD } from '../../constants';
 import type { Spool, PagedResponse } from '../../types';
 import styles from './Dashboard.module.css';
 
@@ -47,16 +49,23 @@ export function Dashboard() {
     queryFn: () => spoolsApi.getStatsByMaterial(),
   });
 
-  const activeSpools = spools.filter((s: Spool) => !s.isEmpty);
-  const lowSpools = activeSpools.filter((s: Spool) => {
-    const remaining = s.remainingPercentage ?? 
-      (s.initialWeightGrams && s.currentWeightGrams 
-        ? (s.currentWeightGrams / s.initialWeightGrams) * 100 
-        : 100);
-    return remaining < 20;
-  });
+  const activeSpools = useMemo(() => 
+    spools.filter((s: Spool) => !s.isEmpty),
+    [spools]
+  );
 
-  const stats = [
+  const lowSpools = useMemo(() => 
+    activeSpools.filter((s: Spool) => {
+      const remaining = s.remainingPercentage ?? 
+        (s.initialWeightGrams && s.currentWeightGrams 
+          ? (s.currentWeightGrams / s.initialWeightGrams) * 100 
+          : 100);
+      return remaining < LOW_STOCK_THRESHOLD;
+    }),
+    [activeSpools]
+  );
+
+  const stats = useMemo(() => [
     { 
       label: 'Total Spools', 
       value: activeSpools.length, 
@@ -85,7 +94,7 @@ export function Dashboard() {
       color: 'var(--color-danger)',
       link: '/spools?lowStock=true'
     },
-  ];
+  ], [activeSpools.length, materials.length, manufacturers.length, lowSpools.length]);
 
   return (
     <div className={styles.dashboard}>
@@ -125,23 +134,23 @@ export function Dashboard() {
             ) : (
               <>
                 <BarChart
-                  data={locationStats.map(stat => ({
+                  data={useMemo(() => locationStats.map(stat => ({
                     name: locationLabels[stat.location] || stat.location,
                     value: stat.count,
-                  }))}
+                  })), [locationStats])}
                   dataKey="value"
                   color="var(--color-accent-primary)"
                   height={250}
                 />
                 <div className={styles.locationList}>
-                  {locationStats.map((stat) => (
+                  {useMemo(() => locationStats.map((stat) => (
                     <div key={stat.location} className={styles.locationItem}>
                       <span className={styles.locationName}>
                         {locationLabels[stat.location] || stat.location}
                       </span>
                       <Badge variant="default">{stat.count}</Badge>
                     </div>
-                  ))}
+                  )), [locationStats])}
                 </div>
               </>
             )}
@@ -161,27 +170,30 @@ export function Dashboard() {
             ) : (
               <>
                 <PieChart
-                  data={materialStats.map(stat => ({
+                  data={useMemo(() => materialStats.map(stat => ({
                     name: stat.material,
                     value: stat.count,
-                  }))}
+                  })), [materialStats])}
                   height={250}
                 />
                 <div className={styles.materialList}>
-                  {materialStats.map((stat) => (
-                    <div key={stat.material} className={styles.materialItem}>
-                      <span className={styles.materialName}>{stat.material}</span>
-                      <div className={styles.materialBar}>
-                        <div 
-                          className={styles.materialBarFill}
-                          style={{ 
-                            width: `${(stat.count / Math.max(...materialStats.map(s => s.count))) * 100}%` 
-                          }}
-                        />
+                  {useMemo(() => {
+                    const maxCount = Math.max(...materialStats.map(s => s.count));
+                    return materialStats.map((stat) => (
+                      <div key={stat.material} className={styles.materialItem}>
+                        <span className={styles.materialName}>{stat.material}</span>
+                        <div className={styles.materialBar}>
+                          <div 
+                            className={styles.materialBarFill}
+                            style={{ 
+                              width: `${(stat.count / maxCount) * 100}%` 
+                            }}
+                          />
+                        </div>
+                        <span className={styles.materialCount}>{stat.count}</span>
                       </div>
-                      <span className={styles.materialCount}>{stat.count}</span>
-                    </div>
-                  ))}
+                    ));
+                  }, [materialStats])}
                 </div>
               </>
             )}

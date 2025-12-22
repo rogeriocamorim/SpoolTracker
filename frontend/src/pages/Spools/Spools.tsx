@@ -10,7 +10,7 @@ import {
   ChevronUp, ChevronDown, ExternalLink, QrCode, Edit, Trash2,
   TableProperties, ArrowUpDown, Columns, Eye, CheckSquare, Square, Move
 } from 'lucide-react';
-import { spoolsApi, materialsApi, manufacturersApi, filamentTypesApi, locationsApi } from '../../api';
+import { spoolsApi, materialsApi, manufacturersApi, filamentTypesApi, locationsApi, settingsApi } from '../../api';
 import { SpoolCard } from '../../components/SpoolCard';
 import { SpoolLabel } from '../../components/SpoolLabel';
 import { QRScanner } from '../../components/QRScanner';
@@ -157,6 +157,12 @@ export function Spools() {
     queryFn: () => locationsApi.getAll({ activeOnly: true }),
   });
 
+  // Fetch settings for default values
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsApi.get(),
+  });
+
   const createMutation = useMutation({
     mutationFn: spoolsApi.create,
     onSuccess: () => {
@@ -226,8 +232,28 @@ export function Spools() {
   });
 
   const resetForm = () => {
-    createForm.reset({ location: 'STORAGE', spoolType: 'PLASTIC' });
+    createForm.reset({ 
+      location: 'STORAGE', 
+      spoolType: 'PLASTIC',
+      initialWeightGrams: settings?.defaultWeightGrams,
+      purchaseCurrency: settings?.defaultCurrency,
+    });
     setSelectedFilamentType(null);
+  };
+
+  const handleOpenCreateModal = () => {
+    setIsCreateModalOpen(true);
+    // Pre-fill form with settings defaults
+    if (settings) {
+      createForm.reset({
+        location: 'STORAGE',
+        spoolType: 'PLASTIC',
+        initialWeightGrams: settings.defaultWeightGrams,
+        purchaseCurrency: settings.defaultCurrency,
+      });
+    } else {
+      resetForm();
+    }
   };
 
   const handleEdit = (spool: Spool) => {
@@ -515,7 +541,7 @@ export function Spools() {
             <ScanLine size={18} />
             Scan
           </Button>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={handleOpenCreateModal}>
             <Plus size={18} />
             Add Spool
           </Button>
@@ -606,7 +632,7 @@ export function Spools() {
               : 'Get started by adding your first spool'}
           </p>
           {!searchTerm && !locationFilter && !materialFilter && (
-            <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Button onClick={handleOpenCreateModal}>
               <Plus size={18} />
               Add Spool
             </Button>

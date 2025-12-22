@@ -8,7 +8,7 @@ import {
 import { spoolsApi, filamentTypesApi } from '../../api';
 import { SpoolLabel } from '../../components/SpoolLabel';
 import { Button, Badge, Modal, Select, Input } from '../../components/ui';
-import type { Spool, SpoolLocation, CreateSpoolDTO, PagedResponse } from '../../types';
+import type { Spool, SpoolLocation, SpoolType, CreateSpoolDTO, PagedResponse } from '../../types';
 import styles from './ColorDetail.module.css';
 
 const locationLabels: Record<string, string> = {
@@ -506,7 +506,7 @@ export function ColorDetail() {
               label="Spool Type"
               options={spoolTypeOptions}
               value={formData.spoolType || 'PLASTIC'}
-              onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as SpoolType })}
             />
             <Select
               label="Location"
@@ -604,7 +604,7 @@ export function ColorDetail() {
               label="Spool Type"
               options={spoolTypeOptions}
               value={formData.spoolType || 'PLASTIC'}
-              onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as SpoolType })}
             />
             <Select
               label="Location"

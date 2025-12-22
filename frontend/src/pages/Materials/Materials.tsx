@@ -171,7 +171,7 @@ export function Materials() {
         title="Add New Material"
         size="md"
       >
-        <form onSubmit={createForm.handleSubmit(handleSubmitCreate)} className={styles.form}>
+        <form onSubmit={createForm.handleSubmit(handleSubmitCreate as any)} className={styles.form}>
           <Controller
             name="name"
             control={createForm.control}

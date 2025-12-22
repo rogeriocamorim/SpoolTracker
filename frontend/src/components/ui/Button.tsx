@@ -15,6 +15,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     isLoading = false,
     className = '',
     disabled,
+    'aria-label': ariaLabel,
     ...props 
   }, ref) => {
     return (
@@ -22,6 +23,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={`${styles.button} ${styles[variant]} ${styles[size]} ${className}`}
         disabled={disabled || isLoading}
+        aria-label={ariaLabel || (isLoading ? 'Loading...' : undefined)}
+        aria-busy={isLoading}
         {...props}
       >
         {isLoading ? (

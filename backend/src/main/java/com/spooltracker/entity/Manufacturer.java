@@ -3,6 +3,7 @@ package com.spooltracker.entity;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
@@ -11,7 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "manufacturer")
+@Table(
+    name = "manufacturer",
+    indexes = {
+        @Index(name = "idx_manufacturer_name", columnList = "name")
+    }
+)
 public class Manufacturer extends PanacheEntity {
 
     @NotBlank(message = "Manufacturer name is required")

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../ui';
+import { logger } from '../../utils/logger';
 import styles from './QRScanner.module.css';
 
 interface QRScannerProps {
@@ -15,7 +16,13 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const scannerKey = useRef(0);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleScan = (detectedCodes: any[]) => {
+  interface DetectedCode {
+    rawValue: string;
+  }
+
+  const errorTimeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleScan = (detectedCodes: DetectedCode[]) => {
     if (detectedCodes && detectedCodes.length > 0) {
       const scannedUrl = detectedCodes[0].rawValue;
       
@@ -24,15 +31,21 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         onScan(scannedUrl);
       } else {
         setError('This QR code is not a SpoolTracker label');
-        setTimeout(() => setError(null), 3000);
+        if (errorTimeoutIdRef.current) {
+          clearTimeout(errorTimeoutIdRef.current);
+        }
+        errorTimeoutIdRef.current = setTimeout(() => {
+          setError(null);
+          errorTimeoutIdRef.current = null;
+        }, 3000);
       }
     }
   };
 
-  const handleError = (err: any) => {
-    console.error('QR Scanner error:', err);
+  const handleError = (err: Error | unknown) => {
+    logger.error('QR Scanner error', err instanceof Error ? err : new Error(String(err)), { component: 'QRScanner' });
     
-    const errorMessage = err?.message || String(err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
     
     // Only show error for actual permission/camera issues, not initialization warnings
     if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
@@ -71,6 +84,9 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
     return () => {
       if (errorTimeoutRef.current) {
         clearTimeout(errorTimeoutRef.current);
+      }
+      if (errorTimeoutIdRef.current) {
+        clearTimeout(errorTimeoutIdRef.current);
       }
     };
   }, []);

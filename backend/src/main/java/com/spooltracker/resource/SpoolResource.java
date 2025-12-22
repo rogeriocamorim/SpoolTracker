@@ -12,8 +12,12 @@ import com.spooltracker.entity.FilamentType;
 import com.spooltracker.entity.Location;
 import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Spool;
+import com.spooltracker.entity.Settings;
 import com.spooltracker.entity.SpoolLocation;
+import com.spooltracker.service.SettingsService;
 import com.spooltracker.service.SpoolHistoryService;
+import com.spooltracker.util.ResponseHelper;
+import com.spooltracker.util.Sanitizer;
 
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -29,8 +33,10 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 @Path("/api/spools")
 @Produces(MediaType.APPLICATION_JSON)
@@ -39,6 +45,12 @@ public class SpoolResource {
 
     @Inject
     SpoolHistoryService historyService;
+
+    @Inject
+    SettingsService settingsService;
+
+    @Context
+    UriInfo uriInfo;
 
     @GET
     public Response getAll(
@@ -56,46 +68,75 @@ public class SpoolResource {
         // Use Panache query with proper parameter binding
         io.quarkus.panache.common.Page panachePage = io.quarkus.panache.common.Page.of(page, pageSize);
         
+        // Determine if JOINs are needed first
+        boolean needsJoin = search != null && !search.trim().isEmpty() 
+            || colorId != null 
+            || manufacturerId != null 
+            || filamentTypeId != null;
+        
         // Build query conditions
         List<String> conditions = new java.util.ArrayList<>();
         List<Object> params = new java.util.ArrayList<>();
         int paramIndex = 1;
         
         if (colorNumber != null && !colorNumber.trim().isEmpty()) {
-            conditions.add("colorNumber = ?" + paramIndex++);
+            conditions.add("s.colorNumber = ?" + paramIndex++);
             params.add(colorNumber.trim());
         }
         if (storageLocationId != null) {
-            conditions.add("storageLocation.id = ?" + paramIndex++);
+            conditions.add("s.storageLocation.id = ?" + paramIndex++);
             params.add(storageLocationId);
         }
         if (location != null) {
-            conditions.add("legacyLocation = ?" + paramIndex++);
+            conditions.add("s.legacyLocation = ?" + paramIndex++);
             params.add(location);
         }
         if (manufacturerId != null) {
-            conditions.add("manufacturer.id = ?" + paramIndex++);
+            // Use alias if JOIN exists, otherwise use path navigation
+            if (needsJoin) {
+                conditions.add("manufacturer.id = ?" + paramIndex++);
+            } else {
+                conditions.add("s.manufacturer.id = ?" + paramIndex++);
+            }
             params.add(manufacturerId);
         }
         if (filamentTypeId != null) {
-            conditions.add("filamentType.id = ?" + paramIndex++);
+            // Use alias if JOIN exists, otherwise use path navigation
+            if (needsJoin) {
+                conditions.add("filamentType.id = ?" + paramIndex++);
+            } else {
+                conditions.add("s.filamentType.id = ?" + paramIndex++);
+            }
             params.add(filamentTypeId);
         }
         if (colorId != null) {
-            conditions.add("color.id = ?" + paramIndex++);
+            // Use alias if JOIN exists, otherwise use path navigation
+            if (needsJoin) {
+                conditions.add("color.id = ?" + paramIndex++);
+            } else {
+                conditions.add("s.color.id = ?" + paramIndex++);
+            }
             params.add(colorId);
         }
         if (isEmpty != null) {
-            conditions.add("isEmpty = ?" + paramIndex++);
+            conditions.add("s.isEmpty = ?" + paramIndex++);
             params.add(isEmpty);
         }
         
-        // Add search filter
+        // Build query with JOINs for better performance when filtering by related entities
+        String baseQuery = "FROM Spool s";
+        if (needsJoin) {
+            baseQuery += " JOIN s.color color JOIN s.manufacturer manufacturer JOIN s.filamentType filamentType";
+        }
+        
+        // Add search filter - use JOIN for better performance
+        // IMPORTANT: This must come AFTER JOINs are determined, as it references joined entity aliases
         if (search != null && !search.trim().isEmpty()) {
             String searchLower = "%" + search.toLowerCase().trim() + "%";
+            // Use JOIN syntax for better query performance - aliases must exist from JOIN above
             conditions.add("(LOWER(color.name) LIKE ?" + paramIndex++
-                + " OR LOWER(colorNumber) LIKE ?" + paramIndex++
-                + " OR LOWER(notes) LIKE ?" + paramIndex++
+                + " OR LOWER(s.colorNumber) LIKE ?" + paramIndex++
+                + " OR LOWER(s.notes) LIKE ?" + paramIndex++
                 + " OR LOWER(manufacturer.name) LIKE ?" + paramIndex++
                 + " OR LOWER(filamentType.name) LIKE ?" + paramIndex++ + ")");
             params.add(searchLower);
@@ -106,16 +147,25 @@ public class SpoolResource {
         }
         
         String whereClause = conditions.isEmpty() ? null : String.join(" AND ", conditions);
+        String fullQuery = baseQuery + (whereClause != null ? " WHERE " + whereClause : "");
         
-        // Get total count
-        long totalCount = whereClause != null 
-            ? Spool.count(whereClause, params.toArray())
-            : Spool.count();
+        // Get total count - use optimized count query
+        long totalCount;
+        if (whereClause != null) {
+            String countQuery = "SELECT COUNT(s) " + fullQuery;
+            totalCount = Spool.find(countQuery, params.toArray()).count();
+        } else {
+            totalCount = Spool.count();
+        }
         
-        // Get paginated results
+        // Get paginated results with JOINs for better performance
+        // Note: JOIN FETCH with DISTINCT can cause issues with pagination in some JPA implementations
+        // Since entities use EAGER fetching, related entities should already be loaded
+        // If N+1 issues occur, consider using @EntityGraph or batch fetching
         List<Spool> spools;
         if (whereClause != null) {
-            spools = Spool.find(whereClause, params.toArray())
+            String selectQuery = "SELECT DISTINCT s " + fullQuery;
+            spools = Spool.find(selectQuery, params.toArray())
                 .page(panachePage)
                 .list();
         } else {
@@ -143,7 +193,7 @@ public class SpoolResource {
     public Response getById(@PathParam("id") Long id) {
         Spool spool = Spool.findById(id);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         return Response.ok(SpoolDTO.from(spool)).build();
     }
@@ -153,7 +203,7 @@ public class SpoolResource {
     public Response getByUid(@PathParam("uid") String uid) {
         Spool spool = Spool.findByUid(uid);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         return Response.ok(SpoolDTO.from(spool)).build();
     }
@@ -163,23 +213,17 @@ public class SpoolResource {
     public Response create(@Valid CreateSpoolDTO dto) {
         FilamentType filamentType = FilamentType.findById(dto.filamentTypeId());
         if (filamentType == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Filament type not found")
-                .build();
+            return ResponseHelper.badRequest("Filament type not found", uriInfo);
         }
         
         FilamentColor color = FilamentColor.findById(dto.colorId());
         if (color == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Color not found")
-                .build();
+            return ResponseHelper.badRequest("Color not found", uriInfo);
         }
         
         Manufacturer manufacturer = Manufacturer.findById(dto.manufacturerId());
         if (manufacturer == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Manufacturer not found")
-                .build();
+            return ResponseHelper.badRequest("Manufacturer not found", uriInfo);
         }
         
         Spool spool = new Spool();
@@ -191,9 +235,7 @@ public class SpoolResource {
         if (dto.storageLocationId() != null) {
             Location storageLocation = Location.findById(dto.storageLocationId());
             if (storageLocation == null) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Storage location not found")
-                    .build();
+                return ResponseHelper.badRequest("Storage location not found", uriInfo);
             }
             spool.storageLocation = storageLocation;
             spool.legacyLocation = null;
@@ -201,17 +243,24 @@ public class SpoolResource {
             spool.legacyLocation = dto.location();
             spool.storageLocation = null;
         }
-        spool.locationDetails = dto.locationDetails();
-        spool.initialWeightGrams = dto.initialWeightGrams();
+        spool.locationDetails = Sanitizer.sanitize(dto.locationDetails());
+        
+        // Apply settings defaults if not provided
+        Settings settings = settingsService.getSettings();
+        spool.initialWeightGrams = dto.initialWeightGrams() != null 
+            ? dto.initialWeightGrams() 
+            : (settings.defaultWeightGrams != null ? settings.defaultWeightGrams.doubleValue() : null);
         spool.currentWeightGrams = dto.currentWeightGrams() != null 
             ? dto.currentWeightGrams() 
-            : dto.initialWeightGrams();
+            : spool.initialWeightGrams;
         spool.purchaseDate = dto.purchaseDate();
         spool.openedDate = dto.openedDate();
         spool.purchasePrice = dto.purchasePrice();
-        spool.purchaseCurrency = dto.purchaseCurrency();
-        spool.notes = dto.notes();
-        spool.colorNumber = dto.colorNumber();
+        spool.purchaseCurrency = dto.purchaseCurrency() != null && !dto.purchaseCurrency().trim().isEmpty()
+            ? dto.purchaseCurrency()
+            : settings.defaultCurrency;
+        spool.notes = Sanitizer.sanitizeWithLineBreaks(dto.notes());
+        spool.colorNumber = Sanitizer.sanitize(dto.colorNumber());
         spool.persist();
         
         // Record creation in history
@@ -228,15 +277,13 @@ public class SpoolResource {
     public Response update(@PathParam("id") Long id, @Valid UpdateSpoolDTO dto) {
         Spool spool = Spool.findById(id);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         
         if (dto.filamentTypeId() != null) {
             FilamentType filamentType = FilamentType.findById(dto.filamentTypeId());
             if (filamentType == null) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Filament type not found")
-                    .build();
+                return ResponseHelper.badRequest("Filament type not found", uriInfo);
             }
             spool.filamentType = filamentType;
         }
@@ -244,9 +291,7 @@ public class SpoolResource {
         if (dto.colorId() != null) {
             FilamentColor color = FilamentColor.findById(dto.colorId());
             if (color == null) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Color not found")
-                    .build();
+                return ResponseHelper.badRequest("Color not found", uriInfo);
             }
             spool.color = color;
         }
@@ -254,9 +299,7 @@ public class SpoolResource {
         if (dto.manufacturerId() != null) {
             Manufacturer manufacturer = Manufacturer.findById(dto.manufacturerId());
             if (manufacturer == null) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Manufacturer not found")
-                    .build();
+                return ResponseHelper.badRequest("Manufacturer not found", uriInfo);
             }
             spool.manufacturer = manufacturer;
         }
@@ -274,7 +317,7 @@ public class SpoolResource {
             spool.storageLocation = null;
         }
         if (dto.locationDetails() != null) {
-            spool.locationDetails = dto.locationDetails();
+            spool.locationDetails = Sanitizer.sanitize(dto.locationDetails());
         }
         String newLocation = spool.getLocationName();
         if (oldLocation != null && newLocation != null && !oldLocation.equals(newLocation)) {
@@ -309,13 +352,13 @@ public class SpoolResource {
             spool.purchaseCurrency = dto.purchaseCurrency();
         }
         if (dto.notes() != null) {
-            spool.notes = dto.notes();
+            spool.notes = Sanitizer.sanitizeWithLineBreaks(dto.notes());
         }
         if (dto.isEmpty() != null) {
             spool.isEmpty = dto.isEmpty();
         }
         if (dto.colorNumber() != null) {
-            spool.colorNumber = dto.colorNumber();
+            spool.colorNumber = Sanitizer.sanitize(dto.colorNumber());
         }
         
         return Response.ok(SpoolDTO.from(spool)).build();
@@ -342,9 +385,7 @@ public class SpoolResource {
         if (storageLocationId != null) {
             Location storageLocation = Location.findById(storageLocationId);
             if (storageLocation == null) {
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Storage location not found")
-                    .build();
+                return ResponseHelper.badRequest("Storage location not found", uriInfo);
             }
             spool.storageLocation = storageLocation;
             spool.legacyLocation = null;
@@ -355,7 +396,7 @@ public class SpoolResource {
         }
         
         if (details != null) {
-            spool.locationDetails = details;
+            spool.locationDetails = Sanitizer.sanitize(details);
         }
         
         // Record location change in history
@@ -376,7 +417,7 @@ public class SpoolResource {
     ) {
         Spool spool = Spool.findById(id);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         
         if (weight != null && weight > 0) {
@@ -402,10 +443,10 @@ public class SpoolResource {
     public Response markEmpty(@PathParam("id") Long id) {
         Spool spool = Spool.findById(id);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         
-        if (!spool.isEmpty) {
+        if (spool.isEmpty == null || !spool.isEmpty) {
             spool.isEmpty = true;
             spool.currentWeightGrams = 0.0;
             spool.legacyLocation = SpoolLocation.EMPTY;
@@ -424,7 +465,7 @@ public class SpoolResource {
     public Response delete(@PathParam("id") Long id) {
         Spool spool = Spool.findById(id);
         if (spool == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ResponseHelper.notFound("Spool not found", uriInfo);
         }
         
         spool.delete();
@@ -449,7 +490,7 @@ public class SpoolResource {
     @Path("/stats/by-material")
     public Response getStatsByMaterial() {
         List<Object[]> stats = Spool.find(
-            "SELECT s.filamentType.material.name, COUNT(s) FROM Spool s WHERE s.isEmpty = false GROUP BY s.filamentType.material.name"
+            "SELECT s.filamentType.material.name, COUNT(s) FROM Spool s WHERE s.isEmpty = false AND s.filamentType IS NOT NULL AND s.filamentType.material IS NOT NULL GROUP BY s.filamentType.material.name"
         ).project(Object[].class).list();
         
         return Response.ok(stats.stream()

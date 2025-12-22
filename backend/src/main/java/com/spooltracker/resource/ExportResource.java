@@ -6,14 +6,19 @@ import com.spooltracker.entity.Location;
 import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Spool;
 import com.spooltracker.entity.SpoolLocation;
+import com.spooltracker.util.ResponseHelper;
+import com.spooltracker.util.Sanitizer;
+import org.jboss.logging.Logger;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -24,6 +29,15 @@ import java.util.List;
 @Path("/api/export")
 @Produces(MediaType.APPLICATION_JSON)
 public class ExportResource {
+
+    private static final Logger LOG = Logger.getLogger(ExportResource.class);
+    private static final int MAX_UID_LENGTH = 100;
+    private static final int MAX_STRING_LENGTH = 500;
+    private static final double MAX_WEIGHT = 100000.0; // 100kg max
+    private static final double MIN_WEIGHT = 0.0;
+
+    @Context
+    UriInfo uriInfo;
 
     @GET
     @Path("/spools/csv")
@@ -98,12 +112,12 @@ public class ExportResource {
                 try {
                     String[] fields = parseCsvLine(line);
                     if (fields.length < 6) {
-                        errors.add(String.format("Line %d: Insufficient fields", lineNumber));
+                        errors.add(String.format("Line %d: Insufficient fields (expected at least 6, got %d)", lineNumber, fields.length));
                         skipped++;
                         continue;
                     }
 
-                    // Parse CSV fields (assuming same format as export)
+                    // Parse and validate CSV fields (assuming same format as export)
                     String uid = fields[0].trim();
                     String colorName = fields[1].trim();
                     // materialName is parsed but not used directly (filament type already has material)
@@ -111,10 +125,79 @@ public class ExportResource {
                     String filamentTypeName = fields[4].trim();
                     String locationStr = fields[5].trim();
                     String colorNumber = fields.length > 6 ? fields[6].trim() : null;
-                    Double initialWeight = fields.length > 7 && !fields[7].trim().isEmpty() 
-                        ? Double.parseDouble(fields[7].trim()) : null;
-                    Double currentWeight = fields.length > 8 && !fields[8].trim().isEmpty() 
-                        ? Double.parseDouble(fields[8].trim()) : null;
+                    
+                    // Validate UID
+                    if (uid == null || uid.isEmpty()) {
+                        errors.add(String.format("Line %d: UID is required", lineNumber));
+                        skipped++;
+                        continue;
+                    }
+                    if (uid.length() > MAX_UID_LENGTH) {
+                        errors.add(String.format("Line %d: UID exceeds maximum length of %d characters", lineNumber, MAX_UID_LENGTH));
+                        skipped++;
+                        continue;
+                    }
+                    
+                    // Sanitize string fields
+                    uid = Sanitizer.sanitize(uid);
+                    colorName = Sanitizer.sanitize(colorName);
+                    manufacturerName = Sanitizer.sanitize(manufacturerName);
+                    filamentTypeName = Sanitizer.sanitize(filamentTypeName);
+                    locationStr = Sanitizer.sanitize(locationStr);
+                    if (colorNumber != null && !colorNumber.isEmpty()) {
+                        colorNumber = Sanitizer.sanitize(colorNumber);
+                        if (colorNumber.length() > 50) {
+                            errors.add(String.format("Line %d: Color number exceeds maximum length of 50 characters", lineNumber));
+                            skipped++;
+                            continue;
+                        }
+                    }
+                    
+                    // Validate string lengths
+                    if (colorName.length() > MAX_STRING_LENGTH || manufacturerName.length() > MAX_STRING_LENGTH 
+                        || filamentTypeName.length() > MAX_STRING_LENGTH || locationStr.length() > MAX_STRING_LENGTH) {
+                        errors.add(String.format("Line %d: One or more fields exceed maximum length of %d characters", lineNumber, MAX_STRING_LENGTH));
+                        skipped++;
+                        continue;
+                    }
+                    
+                    // Parse and validate weights
+                    Double initialWeight = null;
+                    Double currentWeight = null;
+                    if (fields.length > 7 && !fields[7].trim().isEmpty()) {
+                        try {
+                            initialWeight = Double.parseDouble(fields[7].trim());
+                            if (initialWeight < MIN_WEIGHT || initialWeight > MAX_WEIGHT) {
+                                errors.add(String.format("Line %d: Initial weight must be between %.1f and %.1f grams", lineNumber, MIN_WEIGHT, MAX_WEIGHT));
+                                skipped++;
+                                continue;
+                            }
+                        } catch (NumberFormatException e) {
+                            errors.add(String.format("Line %d: Invalid initial weight format: %s", lineNumber, fields[7].trim()));
+                            skipped++;
+                            continue;
+                        }
+                    }
+                    if (fields.length > 8 && !fields[8].trim().isEmpty()) {
+                        try {
+                            currentWeight = Double.parseDouble(fields[8].trim());
+                            if (currentWeight < MIN_WEIGHT || currentWeight > MAX_WEIGHT) {
+                                errors.add(String.format("Line %d: Current weight must be between %.1f and %.1f grams", lineNumber, MIN_WEIGHT, MAX_WEIGHT));
+                                skipped++;
+                                continue;
+                            }
+                            // Validate current weight doesn't exceed initial weight
+                            if (initialWeight != null && currentWeight > initialWeight) {
+                                errors.add(String.format("Line %d: Current weight (%.1f) cannot exceed initial weight (%.1f)", lineNumber, currentWeight, initialWeight));
+                                skipped++;
+                                continue;
+                            }
+                        } catch (NumberFormatException e) {
+                            errors.add(String.format("Line %d: Invalid current weight format: %s", lineNumber, fields[8].trim()));
+                            skipped++;
+                            continue;
+                        }
+                    }
 
                     // Find or create manufacturer
                     Manufacturer manufacturer = Manufacturer.find("name", manufacturerName).firstResult();
@@ -172,7 +255,14 @@ public class ExportResource {
                     spool.persist();
                     imported++;
 
+                } catch (NumberFormatException e) {
+                    errors.add(String.format("Line %d: Number format error - %s", lineNumber, e.getMessage()));
+                    skipped++;
+                } catch (IllegalArgumentException e) {
+                    errors.add(String.format("Line %d: Invalid value - %s", lineNumber, e.getMessage()));
+                    skipped++;
                 } catch (Exception e) {
+                    LOG.errorf(e, "Error processing line %d", lineNumber);
                     errors.add(String.format("Line %d: %s", lineNumber, e.getMessage()));
                     skipped++;
                 }
@@ -188,9 +278,7 @@ public class ExportResource {
             return Response.ok(response.toString()).build();
 
         } catch (Exception e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("Failed to parse CSV: " + e.getMessage())
-                .build();
+            return ResponseHelper.badRequest("Failed to parse CSV: " + e.getMessage(), uriInfo);
         }
     }
 

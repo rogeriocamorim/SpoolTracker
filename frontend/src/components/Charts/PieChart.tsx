@@ -1,4 +1,4 @@
-import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, type PieLabelRenderProps } from 'recharts';
 
 interface PieChartProps {
   data: Array<{ name: string; value: number }>;
@@ -26,7 +26,7 @@ export function PieChart({ data, colors = DEFAULT_COLORS, height = 300 }: PieCha
           cx="50%"
           cy="50%"
           labelLine={false}
-          label={(props: any) => {
+          label={(props: PieLabelRenderProps) => {
             const name = props.name ?? '';
             const percent = props.percent ?? 0;
             return `${name} ${(percent * 100).toFixed(0)}%`;
