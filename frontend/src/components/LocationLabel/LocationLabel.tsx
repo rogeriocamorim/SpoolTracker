@@ -168,14 +168,16 @@ export function LocationLabel({ location }: LocationLabelProps) {
 
         <div className={styles.labelWrapper}>
           {/* Hidden QR code canvas that we'll draw from */}
-          <div ref={qrContainerRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
-            <QRCodeCanvas
-              value={locationUrl}
-              size={100 * SCALE}
-              level="H"
-              includeMargin={false}
-            />
-          </div>
+          {locationUrl && (
+            <div ref={qrContainerRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
+              <QRCodeCanvas
+                value={locationUrl}
+                size={100 * SCALE}
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+          )}
           
           {/* Main preview canvas */}
           <canvas

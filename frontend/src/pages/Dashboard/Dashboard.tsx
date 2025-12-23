@@ -96,6 +96,47 @@ export function Dashboard() {
     },
   ], [activeSpools.length, materials.length, manufacturers.length, lowSpools.length]);
 
+  // Memoized chart data - moved from JSX to top level to follow Rules of Hooks
+  const locationChartData = useMemo(() => 
+    locationStats.map(stat => ({
+      name: locationLabels[stat.location] || stat.location,
+      value: stat.count,
+    })), [locationStats]);
+
+  const locationListItems = useMemo(() => 
+    locationStats.map((stat) => (
+      <div key={stat.location} className={styles.locationItem}>
+        <span className={styles.locationName}>
+          {locationLabels[stat.location] || stat.location}
+        </span>
+        <Badge variant="default">{stat.count}</Badge>
+      </div>
+    )), [locationStats]);
+
+  const materialChartData = useMemo(() => 
+    materialStats.map(stat => ({
+      name: stat.material,
+      value: stat.count,
+    })), [materialStats]);
+
+  const materialListItems = useMemo(() => {
+    const maxCount = Math.max(...materialStats.map(s => s.count), 1);
+    return materialStats.map((stat) => (
+      <div key={stat.material} className={styles.materialItem}>
+        <span className={styles.materialName}>{stat.material}</span>
+        <div className={styles.materialBar}>
+          <div 
+            className={styles.materialBarFill}
+            style={{ 
+              width: `${(stat.count / maxCount) * 100}%` 
+            }}
+          />
+        </div>
+        <span className={styles.materialCount}>{stat.count}</span>
+      </div>
+    ));
+  }, [materialStats]);
+
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
@@ -134,23 +175,13 @@ export function Dashboard() {
             ) : (
               <>
                 <BarChart
-                  data={useMemo(() => locationStats.map(stat => ({
-                    name: locationLabels[stat.location] || stat.location,
-                    value: stat.count,
-                  })), [locationStats])}
+                  data={locationChartData}
                   dataKey="value"
                   color="var(--color-accent-primary)"
                   height={250}
                 />
                 <div className={styles.locationList}>
-                  {useMemo(() => locationStats.map((stat) => (
-                    <div key={stat.location} className={styles.locationItem}>
-                      <span className={styles.locationName}>
-                        {locationLabels[stat.location] || stat.location}
-                      </span>
-                      <Badge variant="default">{stat.count}</Badge>
-                    </div>
-                  )), [locationStats])}
+                  {locationListItems}
                 </div>
               </>
             )}
@@ -170,30 +201,11 @@ export function Dashboard() {
             ) : (
               <>
                 <PieChart
-                  data={useMemo(() => materialStats.map(stat => ({
-                    name: stat.material,
-                    value: stat.count,
-                  })), [materialStats])}
+                  data={materialChartData}
                   height={250}
                 />
                 <div className={styles.materialList}>
-                  {useMemo(() => {
-                    const maxCount = Math.max(...materialStats.map(s => s.count));
-                    return materialStats.map((stat) => (
-                      <div key={stat.material} className={styles.materialItem}>
-                        <span className={styles.materialName}>{stat.material}</span>
-                        <div className={styles.materialBar}>
-                          <div 
-                            className={styles.materialBarFill}
-                            style={{ 
-                              width: `${(stat.count / maxCount) * 100}%` 
-                            }}
-                          />
-                        </div>
-                        <span className={styles.materialCount}>{stat.count}</span>
-                      </div>
-                    ));
-                  }, [materialStats])}
+                  {materialListItems}
                 </div>
               </>
             )}

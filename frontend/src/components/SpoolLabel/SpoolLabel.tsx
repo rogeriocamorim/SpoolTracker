@@ -229,14 +229,16 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
             }}
           />
           {/* Hidden QRCodeCanvas to render QR code for drawing onto main canvas */}
-          <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
-            <QRCodeCanvas
-              value={spoolUrl}
-              size={QR_CODE_SIZE * SCALE}
-              level="H"
-              includeMargin={false}
-            />
-          </div>
+          {spoolUrl && (
+            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
+              <QRCodeCanvas
+                value={spoolUrl}
+                size={QR_CODE_SIZE * SCALE}
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+          )}
         </div>
       </div>
 
