@@ -5,8 +5,7 @@ export const createSpoolSchema = z.object({
   colorId: z.number({ message: 'Color is required' }).min(1, 'Color is required'),
   manufacturerId: z.number().min(1, 'Manufacturer is required').optional(),
   spoolType: z.enum(['PLASTIC', 'REFILL', 'CARDBOARD']).optional(),
-  storageLocationId: z.number().optional(),
-  location: z.enum(['AMS', 'PRINTER', 'RACK', 'STORAGE', 'IN_USE', 'EMPTY']).optional(),
+  storageLocationId: z.number({ message: 'Storage location is required' }).min(1, 'Storage location is required'),
   locationDetails: z.string().max(500, 'Location details must be less than 500 characters').optional(),
   initialWeightGrams: z.union([
     z.number().positive('Initial weight must be positive'),
@@ -51,15 +50,6 @@ export const createSpoolSchema = z.object({
   colorNumber: z.string().max(50, 'Color number must be 50 characters or less').optional(),
   notes: z.string().max(1000, 'Notes must be less than 1000 characters').optional(),
 }).refine(
-  (data) => {
-    // At least one location must be provided
-    return data.storageLocationId || data.location;
-  },
-  {
-    message: 'Either storage location or legacy location must be provided',
-    path: ['location'],
-  }
-).refine(
   (data) => {
     // If currentWeightGrams is provided, it should not exceed initialWeightGrams
     if (data.currentWeightGrams && data.initialWeightGrams) {

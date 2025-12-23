@@ -93,7 +93,6 @@ export function Spools() {
   const createForm = useForm<CreateSpoolFormData>({
     resolver: zodResolver(createSpoolSchema) as any,
     defaultValues: {
-      location: 'STORAGE',
       spoolType: 'PLASTIC',
     },
   });
@@ -233,7 +232,6 @@ export function Spools() {
 
   const resetForm = () => {
     createForm.reset({ 
-      location: 'STORAGE', 
       spoolType: 'PLASTIC',
       initialWeightGrams: settings?.defaultWeightGrams,
       purchaseCurrency: settings?.defaultCurrency,
@@ -246,7 +244,6 @@ export function Spools() {
     // Pre-fill form with settings defaults
     if (settings) {
       createForm.reset({
-        location: 'STORAGE',
         spoolType: 'PLASTIC',
         initialWeightGrams: settings.defaultWeightGrams,
         purchaseCurrency: settings.defaultCurrency,
@@ -262,8 +259,7 @@ export function Spools() {
       filamentTypeId: spool.filamentTypeId,
       colorId: spool.colorId,
       manufacturerId: spool.manufacturerId,
-      location: spool.location,
-      locationDetails: spool.locationDetails,
+      storageLocationId: spool.storageLocationId,
       initialWeightGrams: spool.initialWeightGrams,
       currentWeightGrams: spool.currentWeightGrams,
       purchasePrice: spool.purchasePrice,
@@ -360,7 +356,6 @@ export function Spools() {
       manufacturerId: manufacturerId,
       spoolType: data.spoolType,
       storageLocationId: data.storageLocationId,
-      location: data.location,
       locationDetails: data.locationDetails,
       initialWeightGrams: data.initialWeightGrams,
       currentWeightGrams: data.currentWeightGrams,
@@ -1032,28 +1027,6 @@ export function Spools() {
                   value={field.value ? String(field.value) : ''}
                   onChange={(e) => {
                     field.onChange(e.target.value ? Number(e.target.value) : undefined);
-                    createForm.setValue('location', undefined);
-                  }}
-                />
-                {fieldState.error && (
-                  <span className={styles.errorText}>{fieldState.error.message}</span>
-                )}
-              </div>
-            )}
-          />
-
-          <Controller
-            name="location"
-            control={createForm.control}
-            render={({ field, fieldState }) => (
-              <div>
-                <Select
-                  label="Legacy Location (if not using Storage Location)"
-                  options={locationOptions.slice(1)}
-                  value={field.value || ''}
-                  onChange={(e) => {
-                    field.onChange(e.target.value as SpoolLocation);
-                    createForm.setValue('storageLocationId', undefined);
                   }}
                 />
                 {fieldState.error && (
@@ -1217,33 +1190,25 @@ export function Spools() {
           </div>
 
           <Controller
-            name="location"
+            name="storageLocationId"
             control={editForm.control}
             render={({ field, fieldState }) => (
               <div>
                 <Select
-                  label="Location"
-                  options={locationOptions.slice(1)}
-                  value={field.value || ''}
-                  onChange={(e) => field.onChange(e.target.value as SpoolLocation)}
+                  label="Storage Location"
+                  options={[
+                    { value: '', label: 'Select a location...' },
+                    ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+                  ]}
+                  value={field.value ? String(field.value) : ''}
+                  onChange={(e) => {
+                    field.onChange(e.target.value ? Number(e.target.value) : undefined);
+                  }}
                 />
                 {fieldState.error && (
                   <span className={styles.errorText}>{fieldState.error.message}</span>
                 )}
               </div>
-            )}
-          />
-
-          <Controller
-            name="locationDetails"
-            control={editForm.control}
-            render={({ field, fieldState }) => (
-              <Input
-                label="Location Details"
-                placeholder="e.g., Slot 1, Rack A-3"
-                {...field}
-                error={fieldState.error?.message}
-              />
             )}
           />
 
@@ -1255,6 +1220,7 @@ export function Spools() {
                 label="Color Number"
                 placeholder="e.g., 5 (for customer ordering)"
                 {...field}
+                value={field.value || ''}
                 helperText="Number from your color board for easy customer ordering"
                 error={fieldState.error?.message}
               />

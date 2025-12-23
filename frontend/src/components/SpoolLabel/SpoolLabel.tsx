@@ -28,6 +28,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   const colorName = spool?.colorName || '';
   const colorHexCode = spool?.colorHexCode || '#000000';
   const colorProductCode = spool?.colorProductCode || '';
+  const colorNumber = spool?.colorNumber || '';
   
   // Generate the URL that the QR code will link to
   const spoolUrl = spoolUid ? `${window.location.origin}/spools/${spoolUid}` : '';
@@ -139,7 +140,15 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     ctx.fillStyle = '#333333';
     ctx.font = 'bold 10px Courier New, monospace';
     ctx.fillText(colorHexCode.toUpperCase(), infoX, infoY);
-  }, [isDataReady, manufacturerName, filamentTypeName, colorWithCode, colorHexCode]);
+
+    // Color number (if available) - same size as color name
+    if (colorNumber) {
+      infoY += 14;
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.fillText(`#${colorNumber}`, infoX, infoY);
+    }
+  }, [isDataReady, manufacturerName, filamentTypeName, colorWithCode, colorHexCode, colorNumber]);
 
   useEffect(() => {
     // Wait for QR code to render, then render label
