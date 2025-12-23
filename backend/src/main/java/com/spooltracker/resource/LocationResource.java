@@ -139,7 +139,8 @@ public class LocationResource {
         }
         
         // Check if there are spools at this location
-        long spoolCount = location.getSpoolCount();
+        List<Spool> spoolsAtLocation = Spool.findByStorageLocation(id);
+        long spoolCount = spoolsAtLocation.size();
         if (spoolCount > 0) {
             return ResponseHelper.badRequest("Cannot delete location with " + spoolCount + " spool(s). Move or delete spools first.", uriInfo);
         }
@@ -148,6 +149,10 @@ public class LocationResource {
         if (location.children != null && !location.children.isEmpty()) {
             return ResponseHelper.badRequest("Cannot delete location with child locations. Delete or move children first.", uriInfo);
         }
+        
+        // Safety: Clear any orphaned references before deletion
+        // This handles any race conditions or cache inconsistencies
+        Spool.update("storageLocation = null where storageLocation.id = ?1", id);
         
         location.delete();
         return Response.noContent().build();

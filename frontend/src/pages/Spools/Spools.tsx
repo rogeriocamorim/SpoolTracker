@@ -836,7 +836,22 @@ export function Spools() {
                               </thead>
                               <tbody>
                                 {group.spools.map(spool => (
-                                  <tr key={spool.id}>
+                                  <tr 
+                                    key={spool.id}
+                                    className={styles.clickableRow}
+                                    onClick={(e) => {
+                                      // Don't navigate if clicking on buttons or interactive elements
+                                      const target = e.target as HTMLElement;
+                                      if (
+                                        target.closest('button') ||
+                                        target.closest('a') ||
+                                        target.closest(`.${styles.actions}`)
+                                      ) {
+                                        return;
+                                      }
+                                      navigate(`/spools/${spool.uid}`);
+                                    }}
+                                  >
                                     <td>
                                       <button
                                         className={styles.checkboxButton}
@@ -914,6 +929,7 @@ export function Spools() {
               onDelete={handleDelete}
               onUpdateLocation={handleMove}
               onGenerateLabel={handleGenerateLabel}
+              onClick={(s) => navigate(`/spools/${s.uid}`)}
             />
           ))}
         </div>

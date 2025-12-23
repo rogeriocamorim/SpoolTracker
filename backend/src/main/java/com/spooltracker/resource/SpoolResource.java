@@ -13,6 +13,7 @@ import com.spooltracker.entity.Location;
 import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Spool;
 import com.spooltracker.entity.Settings;
+import com.spooltracker.entity.SpoolHistory;
 import com.spooltracker.entity.SpoolLocation;
 import com.spooltracker.entity.SpoolType;
 import com.spooltracker.service.SettingsService;
@@ -469,6 +470,9 @@ public class SpoolResource {
         if (spool == null) {
             return ResponseHelper.notFound("Spool not found", uriInfo);
         }
+        
+        // Delete spool history first to avoid foreign key constraint violation
+        SpoolHistory.delete("spool.id", id);
         
         spool.delete();
         return Response.noContent().build();

@@ -180,6 +180,10 @@
   background: var(--color-bg-elevated);
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
 .table td {
   padding: 0.875rem 1rem;
   vertical-align: middle;

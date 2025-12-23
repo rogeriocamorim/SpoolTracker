@@ -12,6 +12,10 @@
   box-shadow: var(--shadow-md);
 }
 
+.card.clickable {
+  cursor: pointer;
+}
+
 .colorStrip {
   height: 4px;
 }

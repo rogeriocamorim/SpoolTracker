@@ -10,6 +10,7 @@ interface SpoolCardProps {
   onDelete: (spool: Spool) => void;
   onUpdateLocation: (spool: Spool) => void;
   onGenerateLabel?: (spool: Spool) => void;
+  onClick?: (spool: Spool) => void;
 }
 
 const locationLabels: Record<string, string> = {
@@ -30,7 +31,7 @@ const locationVariants: Record<string, 'default' | 'success' | 'warning' | 'dang
   EMPTY: 'danger',
 };
 
-export function SpoolCard({ spool, onEdit, onDelete, onUpdateLocation, onGenerateLabel }: SpoolCardProps) {
+export function SpoolCard({ spool, onEdit, onDelete, onUpdateLocation, onGenerateLabel, onClick }: SpoolCardProps) {
   const [showMenu, setShowMenu] = useState(false);
 
   const remainingPercent = spool.remainingPercentage ?? 
@@ -44,8 +45,22 @@ export function SpoolCard({ spool, onEdit, onDelete, onUpdateLocation, onGenerat
     return 'var(--color-danger)';
   };
 
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't navigate if clicking on buttons or interactive elements
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('a') ||
+      target.closest(`.${styles.menu}`) ||
+      target.closest(`.${styles.menuWrapper}`)
+    ) {
+      return;
+    }
+    onClick?.(spool);
+  };
+
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${onClick ? styles.clickable : ''}`} onClick={handleCardClick}>
       <div className={styles.colorStrip} style={{ backgroundColor: spool.colorHexCode }} />
       
       <div className={styles.content}>
