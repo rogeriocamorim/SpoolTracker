@@ -21,18 +21,31 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   const mainCanvasRef = useRef<HTMLCanvasElement>(null);
   const qrCodeCanvasRef = useRef<HTMLDivElement>(null);
   
+  // Safely get spool properties with fallbacks
+  const spoolUid = spool?.uid || '';
+  const manufacturerName = spool?.manufacturerName || '';
+  const filamentTypeName = spool?.filamentTypeName || '';
+  const colorName = spool?.colorName || '';
+  const colorHexCode = spool?.colorHexCode || '#000000';
+  const colorProductCode = spool?.colorProductCode || '';
+  
   // Generate the URL that the QR code will link to
-  const spoolUrl = `${window.location.origin}/spools/${spool.uid}`;
+  const spoolUrl = spoolUid ? `${window.location.origin}/spools/${spoolUid}` : '';
   
   // Product code for display (Bambu Lab code like 33102)
-  const productCode = spool.colorProductCode || '';
+  const productCode = colorProductCode;
   
   // Combine color name and product code like "Black (33102)"
   const colorWithCode = productCode 
-    ? `${spool.colorName} (${productCode})` 
-    : spool.colorName;
+    ? `${colorName} (${productCode})` 
+    : colorName;
+  
+  // Check if data is ready
+  const isDataReady = Boolean(spoolUid && manufacturerName && filamentTypeName && colorName);
 
   const renderLabel = useCallback(async () => {
+    if (!isDataReady) return;
+    
     const mainCanvas = mainCanvasRef.current;
     if (!mainCanvas) return;
 
@@ -74,7 +87,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     ctx.font = 'bold 11px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(spool.manufacturerName, iconX + 14, headerPadding + headerHeight / 2);
+    ctx.fillText(manufacturerName, iconX + 14, headerPadding + headerHeight / 2);
 
     // Content area starts after header
     const contentY = headerPadding + headerHeight + 4;
@@ -96,7 +109,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     // Filament type badge (e.g., "PETG HF")
     ctx.fillStyle = '#000000';
     const typeBadgeHeight = 14;
-    const typeText = spool.filamentTypeName;
+    const typeText = filamentTypeName;
     ctx.font = 'bold 9px Arial, sans-serif';
     const typeTextWidth = ctx.measureText(typeText).width;
     roundRect(ctx, infoX, infoY, Math.min(typeTextWidth + 8, infoWidth), typeBadgeHeight, 2);
@@ -125,8 +138,8 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     infoY += lines.length * 12 + 6;
     ctx.fillStyle = '#333333';
     ctx.font = 'bold 10px Courier New, monospace';
-    ctx.fillText(spool.colorHexCode.toUpperCase(), infoX, infoY);
-  }, [spool.manufacturerName, spool.filamentTypeName, colorWithCode, spool.colorHexCode]);
+    ctx.fillText(colorHexCode.toUpperCase(), infoX, infoY);
+  }, [isDataReady, manufacturerName, filamentTypeName, colorWithCode, colorHexCode]);
 
   useEffect(() => {
     // Wait for QR code to render, then render label
@@ -144,11 +157,12 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   };
 
   const handleDownloadAML = async () => {
+    if (!isDataReady) return;
     try {
       // Wait a bit to ensure QR code is rendered
       await new Promise(resolve => setTimeout(resolve, 100));
       const imageBase64 = getCanvasBase64();
-      const labelName = `spool-${spool.manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${spool.filamentTypeName.replace(/\s+/g, '-')}-${spool.colorName}-${productCode || spool.uid.slice(0, 8)}.aml`;
+      const labelName = `spool-${manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${filamentTypeName.replace(/\s+/g, '-')}-${colorName}-${productCode || spoolUid.slice(0, 8)}.aml`;
       const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
       downloadAmlFile(amlContent, labelName);
     } catch (error) {
@@ -157,6 +171,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   };
 
   const handleDownloadImage = async () => {
+    if (!isDataReady) return;
     try {
       // Wait a bit to ensure QR code is rendered
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -174,7 +189,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `spool-${spool.manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${spool.filamentTypeName.replace(/\s+/g, '-')}-${spool.colorName}-${productCode || spool.uid.slice(0, 8)}.png`;
+      link.download = `spool-${manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${filamentTypeName.replace(/\s+/g, '-')}-${colorName}-${productCode || spoolUid.slice(0, 8)}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -183,6 +198,19 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       console.error('Failed to download image:', error);
     }
   };
+  
+  // Don't render the full component if data is not ready
+  if (!isDataReady) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.preview}>
+          <div className={styles.previewHeader}>
+            <h4 className={styles.previewTitle}>Loading spool label...</h4>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

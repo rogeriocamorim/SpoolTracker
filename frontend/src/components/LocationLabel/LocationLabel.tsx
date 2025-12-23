@@ -22,10 +22,19 @@ export function LocationLabel({ location }: LocationLabelProps) {
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
   
+  // Safely get location properties with fallbacks
+  const locationId = location?.id || '';
+  const locationName = location?.name || '';
+  
+  // Check if data is ready
+  const isDataReady = Boolean(locationId && locationName);
+  
   // Generate the URL that the QR code will link to
-  const locationUrl = `${window.location.origin}/locations/${location.id}`;
+  const locationUrl = locationId ? `${window.location.origin}/locations/${locationId}` : '';
 
   const renderLabel = useCallback(() => {
+    if (!isDataReady) return;
+    
     const canvas = previewCanvasRef.current;
     const qrContainer = qrContainerRef.current;
     if (!canvas || !qrContainer) return;
@@ -62,7 +71,7 @@ export function LocationLabel({ location }: LocationLabelProps) {
     // Move to center of text bar, rotate, then draw
     ctx.translate(TEXT_BAR_WIDTH / 2, LABEL_HEIGHT / 2);
     ctx.rotate(-Math.PI / 2); // Rotate -90 degrees (text reads bottom to top)
-    ctx.fillText(location.name, 0, 0);
+    ctx.fillText(locationName, 0, 0);
     ctx.restore();
 
     // Draw QR code from the hidden QRCodeCanvas
@@ -73,7 +82,7 @@ export function LocationLabel({ location }: LocationLabelProps) {
     ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
     
     setIsReady(true);
-  }, [location.name]);
+  }, [isDataReady, locationName]);
 
   useEffect(() => {
     // Wait for QR code to render, then render the label
@@ -91,13 +100,14 @@ export function LocationLabel({ location }: LocationLabelProps) {
   };
 
   const handleDownloadAML = async () => {
+    if (!isDataReady) return;
     try {
       // Re-render to make sure it's up to date
       renderLabel();
       await new Promise(resolve => setTimeout(resolve, 150));
       
       const imageBase64 = getCanvasBase64();
-      const labelName = `location-${location.name.replace(/\s+/g, '_')}-${location.id}.aml`;
+      const labelName = `location-${locationName.replace(/\s+/g, '_')}-${locationId}.aml`;
       const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
       downloadAmlFile(amlContent, labelName);
     } catch (error) {
@@ -106,6 +116,7 @@ export function LocationLabel({ location }: LocationLabelProps) {
   };
 
   const handleDownloadImage = async () => {
+    if (!isDataReady) return;
     try {
       // Re-render to make sure it's up to date
       renderLabel();
@@ -125,7 +136,7 @@ export function LocationLabel({ location }: LocationLabelProps) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `location-${location.name.replace(/\s+/g, '_')}-${location.id}.png`;
+      link.download = `location-${locationName.replace(/\s+/g, '_')}-${locationId}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -134,6 +145,19 @@ export function LocationLabel({ location }: LocationLabelProps) {
       console.error('Failed to download image:', error);
     }
   };
+  
+  // Don't render the full component if data is not ready
+  if (!isDataReady) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.preview}>
+          <div className={styles.previewHeader}>
+            <h4 className={styles.previewTitle}>Loading location label...</h4>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
