@@ -1,9 +1,9 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Printer, Settings2 } from 'lucide-react';
+import { Download, Image as ImageIcon } from 'lucide-react';
 import type { Spool } from '../../types';
-import { Button, Select } from '../ui';
-import { generateAmlFile, elementToBase64, downloadAmlFile } from '../../utils/labelife';
+import { Button } from '../ui';
+import { generateAmlFile, downloadAmlFile } from '../../utils/labelife';
 import styles from './SpoolLabel.module.css';
 
 interface SpoolLabelProps {
@@ -11,353 +11,176 @@ interface SpoolLabelProps {
   onClose?: () => void;
 }
 
-type LabelSlot = 'type' | 'color' | 'productCode' | 'hexCode' | 'weight' | 'location' | 'spoolType' | 'uid';
-
-const slotOptions: { value: LabelSlot; label: string }[] = [
-  { value: 'type', label: 'Filament Type' },
-  { value: 'color', label: 'Color Name' },
-  { value: 'productCode', label: 'Product Code' },
-  { value: 'hexCode', label: 'Hex Code' },
-  { value: 'weight', label: 'Weight' },
-  { value: 'location', label: 'Location' },
-  { value: 'spoolType', label: 'Spool Type' },
-  { value: 'uid', label: 'Spool ID' },
-];
-
-const spoolTypeLabels: Record<string, string> = {
-  PLASTIC: 'Plastic',
-  REFILL: 'Refill',
-  CARDBOARD: 'Cardboard',
-};
+// Label dimensions at 96 DPI: 40mm x 30mm = 151px x 113px
+const LABEL_WIDTH = 151;
+const LABEL_HEIGHT = 113;
+const SCALE = 5; // High resolution for printing
+const QR_CODE_SIZE = 70; // Size of the QR code in pixels
 
 export function SpoolLabel({ spool }: SpoolLabelProps) {
-  const labelRef = useRef<HTMLDivElement>(null);
-  const printTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  
-  // Customizable slots - default configuration
-  const [slots, setSlots] = useState<LabelSlot[]>(['type', 'color', 'productCode', 'hexCode']);
+  const mainCanvasRef = useRef<HTMLCanvasElement>(null);
+  const qrCodeCanvasRef = useRef<HTMLDivElement>(null);
   
   // Generate the URL that the QR code will link to
   const spoolUrl = `${window.location.origin}/spools/${spool.uid}`;
   
-  // Product code for display (Bambu Lab code like 10100)
+  // Product code for display (Bambu Lab code like 33102)
   const productCode = spool.colorProductCode || '';
-
-  const getSlotValue = (slot: LabelSlot): string => {
-    switch (slot) {
-      case 'type':
-        return spool.filamentTypeName;
-      case 'color':
-        return spool.colorName;
-      case 'productCode':
-        return productCode ? `(${productCode})` : '';
-      case 'hexCode':
-        return spool.colorHexCode.toUpperCase();
-      case 'weight':
-        return spool.currentWeightGrams ? `${spool.currentWeightGrams}g` : '';
-      case 'location':
-        const locName = spool.storageLocationName || spool.location || 'Unknown';
-        return spool.locationDetails ? `${locName}: ${spool.locationDetails}` : locName;
-      case 'spoolType':
-        return spool.spoolType ? spoolTypeLabels[spool.spoolType] : '';
-      case 'uid':
-        return spool.uid.slice(0, 8);
-      default:
-        return '';
-    }
-  };
-
-  const getSlotStyle = (slot: LabelSlot): string => {
-    switch (slot) {
-      case 'type':
-        return styles.typeBadge;
-      case 'color':
-        return styles.colorName;
-      case 'productCode':
-        return styles.productCode;
-      case 'hexCode':
-        return styles.colorCode;
-      case 'weight':
-        return styles.weight;
-      case 'location':
-        return styles.location;
-      case 'spoolType':
-        return styles.spoolType;
-      case 'uid':
-        return styles.uid;
-      default:
-        return '';
-    }
-  };
-
-  const handleSlotChange = (index: number, value: LabelSlot) => {
-    const newSlots = [...slots];
-    newSlots[index] = value;
-    setSlots(newSlots);
-  };
-
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow || !labelRef.current) return;
-    
-    // Clear any existing timeout
-    if (printTimeoutRef.current) {
-      clearTimeout(printTimeoutRef.current);
-    }
-
-    const slotContent = slots
-      .map((slot) => {
-        const value = getSlotValue(slot);
-        if (!value) return '';
-        const isTypeBadge = slot === 'type';
-        const isMono = slot === 'hexCode' || slot === 'uid';
-        return isTypeBadge
-          ? `<span class="type-badge">${value}</span>`
-          : isMono
-            ? `<span class="mono-text">${value}</span>`
-            : `<span class="text-line">${value}</span>`;
-      })
-      .filter(Boolean)
-      .join('\n                ');
-
-    const labelHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Spool Label - ${spool.colorName}</title>
-          <style>
-            @page {
-              size: 40mm 30mm;
-              margin: 0;
-            }
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
-              width: 40mm;
-              height: 30mm;
-              display: flex;
-              flex-direction: column;
-              background: white;
-            }
-            .label {
-              width: 40mm;
-              height: 30mm;
-              padding: 1.5mm;
-              display: flex;
-              flex-direction: column;
-              border: 0.3mm solid #ccc;
-              border-radius: 1.5mm;
-            }
-            .brand-header {
-              background: black;
-              color: white;
-              font-size: 4mm;
-              font-weight: 900;
-              padding: 1mm 2mm;
-              display: flex;
-              align-items: center;
-              gap: 1.5mm;
-              border-radius: 1mm;
-              letter-spacing: -0.3mm;
-            }
-            .brand-icon {
-              display: flex;
-              gap: 0.5mm;
-            }
-            .brand-icon span {
-              width: 1.2mm;
-              height: 3.5mm;
-              background: white;
-            }
-            .content {
-              display: flex;
-              flex: 1;
-              gap: 2mm;
-              padding-top: 1.5mm;
-            }
-            .qr-container {
-              width: 18mm;
-              height: 18mm;
-              flex-shrink: 0;
-            }
-            .qr-container svg {
-              width: 100%;
-              height: 100%;
-            }
-            .info {
-              flex: 1;
-              display: flex;
-              flex-direction: column;
-              justify-content: flex-start;
-              gap: 0.5mm;
-            }
-            .type-badge {
-              background: black;
-              color: white;
-              font-size: 3mm;
-              font-weight: 900;
-              padding: 0.6mm 1.5mm;
-              border-radius: 0.5mm;
-              display: inline-block;
-              width: fit-content;
-              letter-spacing: -0.1mm;
-            }
-            .text-line {
-              font-size: 3mm;
-              font-weight: 900;
-              color: black;
-              letter-spacing: -0.1mm;
-              line-height: 1.3;
-            }
-            .mono-text {
-              font-size: 2.8mm;
-              color: #333;
-              font-family: 'Courier New', monospace;
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="brand-header">
-              <div class="brand-icon">
-                <span></span>
-                <span></span>
-              </div>
-              ${spool.manufacturerName}
-            </div>
-            <div class="content">
-              <div class="qr-container">
-                ${labelRef.current.querySelector('.qrCode')?.innerHTML || ''}
-              </div>
-              <div class="info">
-                ${slotContent}
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(labelHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    printTimeoutRef.current = setTimeout(() => {
-      printWindow.print();
-      printTimeoutRef.current = null;
-    }, 250);
-  };
   
-  // Cleanup timeout on unmount
+  // Combine color name and product code like "Black (33102)"
+  const colorWithCode = productCode 
+    ? `${spool.colorName} (${productCode})` 
+    : spool.colorName;
+
+  const renderLabel = useCallback(async () => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+
+    const ctx = mainCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set main canvas size at high resolution
+    mainCanvas.width = LABEL_WIDTH * SCALE;
+    mainCanvas.height = LABEL_HEIGHT * SCALE;
+
+    // Scale context for high resolution
+    ctx.scale(SCALE, SCALE);
+
+    // White background with rounded corners
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, LABEL_WIDTH, LABEL_HEIGHT);
+
+    // Add subtle border
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(0.5, 0.5, LABEL_WIDTH - 1, LABEL_HEIGHT - 1);
+
+    // Brand header (black bar at top)
+    const headerHeight = 18;
+    const headerPadding = 4;
+    ctx.fillStyle = '#000000';
+    roundRect(ctx, headerPadding, headerPadding, LABEL_WIDTH - headerPadding * 2, headerHeight, 3);
+    ctx.fill();
+
+    // Brand icon (two vertical bars)
+    ctx.fillStyle = '#ffffff';
+    const iconX = headerPadding + 6;
+    const iconY = headerPadding + 4;
+    ctx.fillRect(iconX, iconY, 3, 10);
+    ctx.fillRect(iconX + 5, iconY, 3, 10);
+
+    // Manufacturer name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(spool.manufacturerName, iconX + 14, headerPadding + headerHeight / 2);
+
+    // Content area starts after header
+    const contentY = headerPadding + headerHeight + 4;
+    const qrSize = QR_CODE_SIZE;
+    const qrX = headerPadding + 2;
+    const qrY = contentY;
+
+    // Draw QR code from the hidden QRCodeCanvas
+    const qrCanvasElement = qrCodeCanvasRef.current?.querySelector('canvas');
+    if (qrCanvasElement) {
+      ctx.drawImage(qrCanvasElement, qrX, qrY, qrSize, qrSize);
+    }
+
+    // Info section (right of QR code)
+    const infoX = qrX + qrSize + 6;
+    const infoWidth = LABEL_WIDTH - infoX - headerPadding;
+    let infoY = contentY + 2;
+
+    // Filament type badge (e.g., "PETG HF")
+    ctx.fillStyle = '#000000';
+    const typeBadgeHeight = 14;
+    const typeText = spool.filamentTypeName;
+    ctx.font = 'bold 9px Arial, sans-serif';
+    const typeTextWidth = ctx.measureText(typeText).width;
+    roundRect(ctx, infoX, infoY, Math.min(typeTextWidth + 8, infoWidth), typeBadgeHeight, 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(typeText, infoX + 4, infoY + typeBadgeHeight / 2);
+
+    // Color name with product code (e.g., "Black (33102)")
+    infoY += typeBadgeHeight + 4;
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 11px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    
+    // Handle long text - wrap if needed
+    const maxLineWidth = infoWidth - 2;
+    const lines = wrapText(ctx, colorWithCode, maxLineWidth);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, infoX, infoY + index * 12);
+    });
+
+    // Hex code (e.g., "#000000")
+    infoY += lines.length * 12 + 6;
+    ctx.fillStyle = '#333333';
+    ctx.font = 'bold 10px Courier New, monospace';
+    ctx.fillText(spool.colorHexCode.toUpperCase(), infoX, infoY);
+  }, [spool.manufacturerName, spool.filamentTypeName, colorWithCode, spool.colorHexCode]);
+
   useEffect(() => {
-    return () => {
-      if (printTimeoutRef.current) {
-        clearTimeout(printTimeoutRef.current);
-      }
-    };
-  }, []);
+    // Wait for QR code to render, then render label
+    const timer = setTimeout(() => {
+      renderLabel();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [renderLabel]);
+
+  const getCanvasBase64 = (): string => {
+    const canvas = mainCanvasRef.current;
+    if (!canvas) throw new Error('Main canvas not found');
+    const dataUrl = canvas.toDataURL('image/png');
+    return dataUrl.split(',')[1];
+  };
 
   const handleDownloadAML = async () => {
-    const labelElement = labelRef.current?.querySelector(`.${styles.label}`) as HTMLElement;
-    if (!labelElement) return;
-
-    // Convert entire label to PNG base64
-    // Label size: 40mm x 30mm = 151px x 113px (at 96 DPI, 1mm = 3.7795px)
-    // The preview is scaled up (272px x 203px), so we need to capture at actual size
-    const labelWidth = 151;
-    const labelHeight = 113;
-    
-    // Create a temporary container with actual size for rendering
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.top = '-9999px';
-    tempContainer.style.width = `${labelWidth}px`;
-    tempContainer.style.height = `${labelHeight}px`;
-    tempContainer.style.overflow = 'hidden';
-    tempContainer.style.backgroundColor = '#ffffff';
-    document.body.appendChild(tempContainer);
-    
-    // Clone the label and scale it down to actual size
-    const clonedLabel = labelElement.cloneNode(true) as HTMLElement;
-    const scale = labelWidth / 272; // 151/272 = 0.555
-    clonedLabel.style.width = '272px';
-    clonedLabel.style.height = '203px';
-    clonedLabel.style.transform = `scale(${scale})`;
-    clonedLabel.style.transformOrigin = 'top left';
-    clonedLabel.style.backgroundColor = '#ffffff';
-    
-    // Convert QR code SVG to image to ensure it's captured
-    const qrCodeElement = clonedLabel.querySelector('.qrCode');
-    if (qrCodeElement) {
-      const qrSvg = qrCodeElement.querySelector('svg') as SVGSVGElement;
-      if (qrSvg) {
-        try {
-          // Get the SVG dimensions
-          const svgRect = qrSvg.getBoundingClientRect();
-          const svgWidth = svgRect.width || 80;
-          const svgHeight = svgRect.height || 80;
-          
-          // Create a canvas to render the SVG
-          const canvas = document.createElement('canvas');
-          canvas.width = svgWidth;
-          canvas.height = svgHeight;
-          const ctx = canvas.getContext('2d');
-          
-          if (ctx) {
-            // Serialize SVG to string
-            const svgData = new XMLSerializer().serializeToString(qrSvg);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
-            
-            // Load SVG as image and draw on canvas
-            const img = new Image();
-            await new Promise((resolve, reject) => {
-              img.onload = () => {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
-                URL.revokeObjectURL(url);
-                resolve(null);
-              };
-              img.onerror = reject;
-              img.src = url;
-            });
-            
-            // Replace SVG with image
-            const imgElement = document.createElement('img');
-            imgElement.src = canvas.toDataURL('image/png');
-            imgElement.style.width = '100%';
-            imgElement.style.height = '100%';
-            imgElement.style.display = 'block';
-            qrCodeElement.innerHTML = '';
-            qrCodeElement.appendChild(imgElement);
-          }
-        } catch (error) {
-          console.warn('Failed to convert QR code SVG to image:', error);
-        }
-      }
-    }
-    
-    tempContainer.appendChild(clonedLabel);
-    
     try {
-      // Wait a bit for the image to render
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      const imageBase64 = await elementToBase64(tempContainer, labelWidth, labelHeight);
-      
-      // Generate .aml file with the full label image
-      const labelName = `spool-label-${productCode || spool.uid.slice(-5)}.aml`;
+      // Wait a bit to ensure QR code is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const imageBase64 = getCanvasBase64();
+      const labelName = `spool-${spool.manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${spool.filamentTypeName.replace(/\s+/g, '-')}-${spool.colorName}-${productCode || spool.uid.slice(0, 8)}.aml`;
       const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
       downloadAmlFile(amlContent, labelName);
-    } finally {
-      document.body.removeChild(tempContainer);
+    } catch (error) {
+      console.error('Failed to generate AML:', error);
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    try {
+      // Wait a bit to ensure QR code is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const imageBase64 = getCanvasBase64();
+
+      // Convert base64 to blob and download
+      const byteCharacters = atob(imageBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `spool-${spool.manufacturerName.replace(/\s+/g, '-').toLowerCase()}-${spool.filamentTypeName.replace(/\s+/g, '-')}-${spool.colorName}-${productCode || spool.uid.slice(0, 8)}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download image:', error);
     }
   };
 
@@ -365,64 +188,26 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     <div className={styles.container}>
       <div className={styles.preview}>
         <div className={styles.previewHeader}>
-          <h4 className={styles.previewTitle}>Label Preview (40mm × 30mm)</h4>
-          <button
-            className={styles.settingsButton}
-            onClick={() => setShowSettings(!showSettings)}
-            title="Customize label"
-          >
-            <Settings2 size={18} />
-          </button>
+          <h4 className={styles.previewTitle}>Spool Label Preview (40mm × 30mm)</h4>
         </div>
-        
-        {showSettings && (
-          <div className={styles.settings}>
-            <p className={styles.settingsLabel}>Customize label information:</p>
-            <div className={styles.slotGrid}>
-              {slots.map((slot, index) => (
-                <Select
-                  key={index}
-                  options={slotOptions}
-                  value={slot}
-                  onChange={(e) => handleSlotChange(index, e.target.value as LabelSlot)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
-        <div className={styles.labelWrapper} ref={labelRef}>
-          <div className={styles.label}>
-            <div className={styles.brandHeader}>
-              <div className={styles.brandIcon}>
-                <span />
-                <span />
-              </div>
-              {spool.manufacturerName}
-            </div>
-            <div className={styles.content}>
-              <div className={styles.qrContainer}>
-                <div className="qrCode">
-                  <QRCodeCanvas
-                    value={spoolUrl}
-                    size={80}
-                    level="H"
-                    includeMargin={false}
-                  />
-                </div>
-              </div>
-              <div className={styles.info}>
-                {slots.map((slot, index) => {
-                  const value = getSlotValue(slot);
-                  if (!value) return null;
-                  return (
-                    <span key={index} className={getSlotStyle(slot)}>
-                      {value}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+        <div className={styles.labelWrapper}>
+          <canvas
+            ref={mainCanvasRef}
+            className={styles.labelCanvas}
+            style={{
+              width: LABEL_WIDTH,
+              height: LABEL_HEIGHT,
+            }}
+          />
+          {/* Hidden QRCodeCanvas to render QR code for drawing onto main canvas */}
+          <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
+            <QRCodeCanvas
+              value={spoolUrl}
+              size={QR_CODE_SIZE * SCALE}
+              level="H"
+              includeMargin={false}
+            />
           </div>
         </div>
       </div>
@@ -433,15 +218,55 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       </div>
 
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={handleDownloadAML}>
+        <Button variant="secondary" onClick={handleDownloadImage}>
+          <ImageIcon size={16} />
+          Download as Image
+        </Button>
+        <Button onClick={handleDownloadAML}>
           <Download size={16} />
           Download .aml
-        </Button>
-        <Button onClick={handlePrint}>
-          <Printer size={16} />
-          Print Label
         </Button>
       </div>
     </div>
   );
+}
+
+// Helper function to draw rounded rectangles
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+// Helper function to wrap text
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  return lines;
 }

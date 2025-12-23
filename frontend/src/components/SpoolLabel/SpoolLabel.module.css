@@ -26,188 +26,19 @@
   margin: 0;
 }
 
-.settingsButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.settingsButton:hover {
-  background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
-}
-
-.settings {
-  width: 100%;
-  padding: var(--spacing-md);
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-md);
-}
-
-.settingsLabel {
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-  margin: 0 0 var(--spacing-sm) 0;
-}
-
-.slotGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-sm);
-}
-
 .labelWrapper {
+  position: relative;
   background: #4a5568;
   padding: 16px;
   border-radius: var(--radius-lg);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-/* Label dimensions: 40mm x 30mm at 96dpi = 151px x 113px */
-/* Scaled up 1.8x for preview = 272px x 203px */
-.label {
-  width: 272px;
-  height: 203px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
+/* Canvas for the label - rendered at actual size (151x113) */
+.labelCanvas {
+  display: block;
+  border-radius: 4px;
   background: white;
-  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-}
-
-.brandHeader {
-  background: black;
-  color: white;
-  font-size: 20px;
-  font-weight: 900;
-  padding: 6px 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 5px;
-  letter-spacing: -0.5px;
-}
-
-.brandIcon {
-  display: flex;
-  gap: 2px;
-}
-
-.brandIcon span {
-  width: 5px;
-  height: 16px;
-  background: white;
-}
-
-.content {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-  padding-top: 8px;
-  align-items: flex-start;
-}
-
-.qrContainer {
-  width: 90px;
-  height: 90px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.qrContainer .qrCode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.qrContainer svg {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 80px;
-  max-height: 80px;
-}
-
-.info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 2px;
-  overflow: hidden;
-}
-
-.typeBadge {
-  background: black;
-  color: white;
-  font-size: 16px;
-  font-weight: 900;
-  padding: 4px 8px;
-  border-radius: 3px;
-  display: inline-block;
-  width: fit-content;
-  letter-spacing: -0.3px;
-}
-
-.colorName {
-  font-size: 19px;
-  font-weight: 900;
-  color: black;
-  letter-spacing: -0.3px;
-  line-height: 1.2;
-  margin-top: 4px;
-}
-
-.productCode {
-  font-size: 17px;
-  font-weight: 900;
-  color: black;
-}
-
-.colorCode {
-  font-size: 14px;
-  color: #333;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  margin-top: 2px;
-}
-
-.weight {
-  font-size: 15px;
-  font-weight: 900;
-  color: black;
-}
-
-.location {
-  font-size: 13px;
-  font-weight: 700;
-  color: #444;
-}
-
-.spoolType {
-  font-size: 12px;
-  font-weight: 600;
-  color: #666;
-}
-
-.uid {
-  font-size: 12px;
-  color: #555;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
 }
 
 .urlInfo {
