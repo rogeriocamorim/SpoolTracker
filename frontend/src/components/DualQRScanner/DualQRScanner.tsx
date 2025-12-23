@@ -23,6 +23,7 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
   const [cameraError, setCameraError] = useState<boolean>(false);
   const scannerKey = useRef(0);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const constraintAttempt = useRef(0);
 
   interface DetectedCode {
     rawValue: string;
@@ -150,13 +151,25 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
     // Only show error for actual permission/camera issues, not initialization warnings
     if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
       setCameraError(true);
-      setError('Camera permission denied. Please allow camera access in your browser settings.');
+      setError('Camera permission denied. Please allow camera access in your browser settings. On iOS, make sure you tap "Allow" when prompted.');
     } else if (errorMessage.includes('NotFoundError') || errorMessage.includes('No video input')) {
       setCameraError(true);
       setError('No camera found. Please connect a camera device.');
-    } else if (errorMessage.includes('NotReadableError')) {
+    } else if (errorMessage.includes('NotReadableError') || errorMessage.includes('TrackStartError')) {
       setCameraError(true);
       setError('Camera is already in use by another application.');
+    } else if (errorMessage.includes('OverconstrainedError') || errorMessage.includes('ConstraintNotSatisfiedError')) {
+      // Try with simpler constraints
+      if (constraintAttempt.current < 2) {
+        constraintAttempt.current += 1;
+        setError('Camera constraints not supported. Trying alternative settings...');
+        setTimeout(() => {
+          scannerKey.current += 1;
+        }, 500);
+      } else {
+        setCameraError(true);
+        setError('Could not access camera with any available settings. Please try a different browser or device.');
+      }
     } else {
       // For other errors, wait a bit before showing error (might be temporary)
       if (errorTimeoutRef.current) {
@@ -172,6 +185,7 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
   const handleRetry = () => {
     setError(null);
     setCameraError(false);
+    constraintAttempt.current = 0; // Reset to try best constraints first
     if (errorTimeoutRef.current) {
       clearTimeout(errorTimeoutRef.current);
       errorTimeoutRef.current = null;
@@ -292,12 +306,22 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
         {(state === 'scanning-spool' || state === 'scanning-location') && (
           <div className={styles.scannerWrapper}>
             <Scanner
-              key={scannerKey.current}
+              key={`${scannerKey.current}-${constraintAttempt.current}`}
               onScan={handleScan}
               onError={handleError}
-              constraints={{
-                facingMode: 'environment'
-              }}
+              constraints={
+                constraintAttempt.current === 0
+                  ? {
+                      facingMode: { ideal: 'environment' },
+                      width: { ideal: 1280 },
+                      height: { ideal: 720 }
+                    }
+                  : constraintAttempt.current === 1
+                  ? {
+                      facingMode: 'environment'
+                    }
+                  : undefined
+              }
               styles={{
                 container: {
                   width: '100%',

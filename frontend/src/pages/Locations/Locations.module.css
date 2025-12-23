@@ -54,6 +54,7 @@
 .table tbody tr {
   border-bottom: 1px solid var(--color-border);
   transition: background 0.15s ease;
+  cursor: pointer;
 }
 
 .table tbody tr:hover {
@@ -126,6 +127,10 @@
 
 .activeToggle {
   color: var(--color-success);
+}
+
+.inactiveToggle {
+  color: var(--color-text-muted);
 }
 
 .actions {

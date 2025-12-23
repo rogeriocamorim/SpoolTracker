@@ -181,8 +181,8 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
               padding-top: 1.5mm;
             }
             .qr-container {
-              width: 20mm;
-              height: 20mm;
+              width: 18mm;
+              height: 18mm;
               flex-shrink: 0;
             }
             .qr-container svg {
@@ -280,6 +280,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     tempContainer.style.width = `${labelWidth}px`;
     tempContainer.style.height = `${labelHeight}px`;
     tempContainer.style.overflow = 'hidden';
+    tempContainer.style.backgroundColor = '#ffffff';
     document.body.appendChild(tempContainer);
     
     // Clone the label and scale it down to actual size
@@ -289,9 +290,66 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     clonedLabel.style.height = '203px';
     clonedLabel.style.transform = `scale(${scale})`;
     clonedLabel.style.transformOrigin = 'top left';
+    clonedLabel.style.backgroundColor = '#ffffff';
+    
+    // Convert QR code SVG to image to ensure it's captured
+    const qrCodeElement = clonedLabel.querySelector('.qrCode');
+    if (qrCodeElement) {
+      const qrSvg = qrCodeElement.querySelector('svg') as SVGSVGElement;
+      if (qrSvg) {
+        try {
+          // Get the SVG dimensions
+          const svgRect = qrSvg.getBoundingClientRect();
+          const svgWidth = svgRect.width || 80;
+          const svgHeight = svgRect.height || 80;
+          
+          // Create a canvas to render the SVG
+          const canvas = document.createElement('canvas');
+          canvas.width = svgWidth;
+          canvas.height = svgHeight;
+          const ctx = canvas.getContext('2d');
+          
+          if (ctx) {
+            // Serialize SVG to string
+            const svgData = new XMLSerializer().serializeToString(qrSvg);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            
+            // Load SVG as image and draw on canvas
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+              img.onload = () => {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+                URL.revokeObjectURL(url);
+                resolve(null);
+              };
+              img.onerror = reject;
+              img.src = url;
+            });
+            
+            // Replace SVG with image
+            const imgElement = document.createElement('img');
+            imgElement.src = canvas.toDataURL('image/png');
+            imgElement.style.width = '100%';
+            imgElement.style.height = '100%';
+            imgElement.style.display = 'block';
+            qrCodeElement.innerHTML = '';
+            qrCodeElement.appendChild(imgElement);
+          }
+        } catch (error) {
+          console.warn('Failed to convert QR code SVG to image:', error);
+        }
+      }
+    }
+    
     tempContainer.appendChild(clonedLabel);
     
     try {
+      // Wait a bit for the image to render
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       const imageBase64 = await elementToBase64(tempContainer, labelWidth, labelHeight);
       
       // Generate .aml file with the full label image
@@ -343,13 +401,15 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
               {spool.manufacturerName}
             </div>
             <div className={styles.content}>
-              <div className={`${styles.qrContainer} qrCode`}>
-                <QRCodeCanvas
-                  value={spoolUrl}
-                  size={80}
-                  level="M"
-                  includeMargin={false}
-                />
+              <div className={styles.qrContainer}>
+                <div className="qrCode">
+                  <QRCodeCanvas
+                    value={spoolUrl}
+                    size={80}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
               </div>
               <div className={styles.info}>
                 {slots.map((slot, index) => {

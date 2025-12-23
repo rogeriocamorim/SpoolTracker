@@ -126,14 +126,33 @@ export async function elementToBase64(element: HTMLElement, width: number, heigh
   // Dynamic import to avoid bundling issues
   const html2canvas = (await import('html2canvas')).default;
   
+  // Ensure all SVGs are visible and properly rendered
+  const svgs = element.querySelectorAll('svg');
+  svgs.forEach(svg => {
+    svg.style.display = 'block';
+    svg.style.visibility = 'visible';
+    svg.style.opacity = '1';
+  });
+  
   const canvas = await html2canvas(element, {
     width: width,
     height: height,
-    scale: 3, // Higher resolution for better quality
+    scale: 5, // Higher resolution for better quality (increased from 3 to 5)
     backgroundColor: '#ffffff',
     useCORS: true,
     logging: false,
     allowTaint: false,
+    imageTimeout: 15000,
+    foreignObjectRendering: true, // Better SVG rendering
+    onclone: (clonedDoc) => {
+      // Ensure SVGs are visible in the cloned document
+      const clonedSvgs = clonedDoc.querySelectorAll('svg');
+      clonedSvgs.forEach(svg => {
+        svg.style.display = 'block';
+        svg.style.visibility = 'visible';
+        svg.style.opacity = '1';
+      });
+    },
   });
   
   return canvasToBase64(canvas);

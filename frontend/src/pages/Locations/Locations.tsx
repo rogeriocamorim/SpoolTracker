@@ -188,15 +188,34 @@ export function Locations() {
     const hasChildren = location.children && location.children.length > 0;
     const isExpanded = expandedLocations.has(location.id);
 
+    const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
+      // Don't navigate if clicking on buttons or interactive elements
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest(`.${styles.actions}`)
+      ) {
+        return;
+      }
+      navigate(`/locations/${location.id}`);
+    };
+
     return (
       <React.Fragment key={location.id}>
-        <tr className={`${styles.locationRow} ${!location.isActive ? styles.inactive : ''}`}>
+        <tr 
+          className={`${styles.locationRow} ${!location.isActive ? styles.inactive : ''}`}
+          onClick={handleRowClick}
+        >
           <td style={{ paddingLeft: `${level * 24 + 16}px` }}>
             <div className={styles.nameCell}>
               {hasChildren && (
                 <button 
                   className={styles.expandButton}
-                  onClick={() => toggleExpand(location.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(location.id);
+                  }}
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
@@ -216,14 +235,21 @@ export function Locations() {
           <td>
             <button
               className={styles.toggleButton}
-              onClick={() => toggleActiveMutation.mutate({ id: location.id, active: !location.isActive })}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleActiveMutation.mutate({ id: location.id, active: !location.isActive });
+              }}
               title={location.isActive ? 'Deactivate' : 'Activate'}
             >
-              {location.isActive ? <ToggleRight size={20} className={styles.activeToggle} /> : <ToggleLeft size={20} />}
+              {location.isActive ? (
+                <ToggleRight size={20} className={styles.activeToggle} />
+              ) : (
+                <ToggleLeft size={20} className={styles.inactiveToggle} />
+              )}
             </button>
           </td>
           <td>
-            <div className={styles.actions}>
+            <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
               <button 
                 className={styles.actionButton}
                 onClick={() => navigate(`/locations/${location.id}`)}

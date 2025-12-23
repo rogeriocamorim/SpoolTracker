@@ -1,9 +1,9 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Printer, Settings2 } from 'lucide-react';
+import { Download, Image as ImageIcon } from 'lucide-react';
 import type { Location } from '../../types';
-import { Button, Select } from '../ui';
-import { generateAmlFile, elementToBase64, downloadAmlFile } from '../../utils/labelife';
+import { Button } from '../ui';
+import { generateAmlFile, downloadAmlFile } from '../../utils/labelife';
 import styles from './LocationLabel.module.css';
 
 interface LocationLabelProps {
@@ -11,236 +11,128 @@ interface LocationLabelProps {
   onClose?: () => void;
 }
 
-type LabelSlot = 'name' | 'type' | 'description' | 'capacity' | 'id';
-
-const slotOptions: { value: LabelSlot; label: string }[] = [
-  { value: 'name', label: 'Location Name' },
-  { value: 'type', label: 'Location Type' },
-  { value: 'description', label: 'Description' },
-  { value: 'capacity', label: 'Capacity' },
-  { value: 'id', label: 'Location ID' },
-];
+// Label dimensions at 96 DPI: 40mm x 30mm = 151px x 113px
+const LABEL_WIDTH = 151;
+const LABEL_HEIGHT = 113;
+const SCALE = 5; // High resolution for printing
+const TEXT_BAR_WIDTH = 30;
 
 export function LocationLabel({ location }: LocationLabelProps) {
-  const labelRef = useRef<HTMLDivElement>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  
-  // Customizable slots - default configuration
-  const [slots, setSlots] = useState<LabelSlot[]>(['name', 'type']);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const qrContainerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
   
   // Generate the URL that the QR code will link to
   const locationUrl = `${window.location.origin}/locations/${location.id}`;
-  
-  const getSlotValue = (slot: LabelSlot): string => {
-    switch (slot) {
-      case 'name':
-        return location.name;
-      case 'type':
-        return location.locationType || 'Location';
-      case 'description':
-        return location.description || '';
-      case 'capacity':
-        return location.capacity ? `Capacity: ${location.capacity}` : '';
-      case 'id':
-        return `ID: ${location.id}`;
-      default:
-        return '';
-    }
-  };
 
-  const getSlotStyle = (slot: LabelSlot): string => {
-    switch (slot) {
-      case 'name':
-        return styles.name;
-      case 'type':
-        return styles.typeBadge;
-      case 'description':
-        return styles.description;
-      case 'capacity':
-        return styles.capacity;
-      case 'id':
-        return styles.id;
-      default:
-        return '';
-    }
-  };
+  const renderLabel = useCallback(() => {
+    const canvas = previewCanvasRef.current;
+    const qrContainer = qrContainerRef.current;
+    if (!canvas || !qrContainer) return;
 
-  const handleSlotChange = (index: number, value: LabelSlot) => {
-    const newSlots = [...slots];
-    newSlots[index] = value;
-    setSlots(newSlots);
-  };
+    // Find the QR canvas inside the container
+    const qrCanvas = qrContainer.querySelector('canvas') as HTMLCanvasElement;
+    if (!qrCanvas) return;
 
-  const printTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow || !labelRef.current) return;
+    // Set canvas size at high resolution
+    canvas.width = LABEL_WIDTH * SCALE;
+    canvas.height = LABEL_HEIGHT * SCALE;
+
+    // Scale context for high resolution
+    ctx.scale(SCALE, SCALE);
+
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, LABEL_WIDTH, LABEL_HEIGHT);
+
+    // Black text bar on left
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, TEXT_BAR_WIDTH, LABEL_HEIGHT);
+
+    // Draw rotated text
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     
-    // Clear any existing timeout
-    if (printTimeoutRef.current) {
-      clearTimeout(printTimeoutRef.current);
-    }
+    // Move to center of text bar, rotate, then draw
+    ctx.translate(TEXT_BAR_WIDTH / 2, LABEL_HEIGHT / 2);
+    ctx.rotate(-Math.PI / 2); // Rotate -90 degrees (text reads bottom to top)
+    ctx.fillText(location.name, 0, 0);
+    ctx.restore();
 
-    const slotContent = slots
-      .map((slot) => {
-        const value = getSlotValue(slot);
-        if (!value) return '';
-        const isTypeBadge = slot === 'type';
-        const isMono = slot === 'id';
-        return isTypeBadge
-          ? `<span class="type-badge">${value}</span>`
-          : isMono
-            ? `<span class="mono-text">${value}</span>`
-            : `<span class="text-line">${value}</span>`;
-      })
-      .filter(Boolean)
-      .join('\n                ');
+    // Draw QR code from the hidden QRCodeCanvas
+    const qrSize = Math.min(LABEL_WIDTH - TEXT_BAR_WIDTH - 8, LABEL_HEIGHT - 8);
+    const qrX = TEXT_BAR_WIDTH + (LABEL_WIDTH - TEXT_BAR_WIDTH - qrSize) / 2;
+    const qrY = (LABEL_HEIGHT - qrSize) / 2;
+    
+    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+    
+    setIsReady(true);
+  }, [location.name]);
 
-    const labelHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Location Label - ${location.name}</title>
-          <style>
-            @page {
-              size: 40mm 30mm;
-              margin: 0;
-            }
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
-              width: 40mm;
-              height: 30mm;
-              display: flex;
-              flex-direction: column;
-              background: white;
-            }
-            .label {
-              width: 40mm;
-              height: 30mm;
-              padding: 1.5mm;
-              display: flex;
-              flex-direction: column;
-              border: 0.3mm solid #ccc;
-              border-radius: 1.5mm;
-            }
-            .brand-header {
-              background: black;
-              color: white;
-              font-size: 4mm;
-              font-weight: 900;
-              padding: 1mm 2mm;
-              display: flex;
-              align-items: center;
-              gap: 1.5mm;
-              border-radius: 1mm;
-              letter-spacing: -0.3mm;
-            }
-            .content {
-              display: flex;
-              flex: 1;
-              gap: 2mm;
-              padding-top: 1.5mm;
-            }
-            .qr-container {
-              width: 22mm;
-              height: 22mm;
-              flex-shrink: 0;
-            }
-            .qr-container svg {
-              width: 100%;
-              height: 100%;
-            }
-            .info {
-              flex: 1;
-              display: flex;
-              flex-direction: column;
-              justify-content: flex-start;
-              gap: 0.5mm;
-            }
-            .type-badge {
-              background: black;
-              color: white;
-              font-size: 3mm;
-              font-weight: 900;
-              padding: 0.6mm 1.5mm;
-              border-radius: 0.5mm;
-              display: inline-block;
-              width: fit-content;
-              letter-spacing: -0.1mm;
-            }
-            .text-line {
-              font-size: 3mm;
-              font-weight: 900;
-              color: black;
-              letter-spacing: -0.1mm;
-              line-height: 1.3;
-            }
-            .mono-text {
-              font-size: 2.8mm;
-              color: #333;
-              font-family: 'Courier New', monospace;
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="brand-header">
-              📍 ${location.name}
-            </div>
-            <div class="content">
-              <div class="qr-container">
-                ${labelRef.current.querySelector('.qrCode')?.innerHTML || ''}
-              </div>
-              <div class="info">
-                ${slotContent}
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(labelHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    printTimeoutRef.current = setTimeout(() => {
-      printWindow.print();
-      printTimeoutRef.current = null;
-    }, 250);
-  };
-  
-  // Cleanup timeout on unmount
   useEffect(() => {
-    return () => {
-      if (printTimeoutRef.current) {
-        clearTimeout(printTimeoutRef.current);
-      }
-    };
-  }, []);
+    // Wait for QR code to render, then render the label
+    const timer = setTimeout(() => {
+      renderLabel();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [renderLabel, locationUrl]);
+
+  const getCanvasBase64 = (): string => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) throw new Error('Canvas not found');
+    const dataUrl = canvas.toDataURL('image/png');
+    return dataUrl.split(',')[1];
+  };
 
   const handleDownloadAML = async () => {
-    const labelElement = labelRef.current?.querySelector(`.${styles.label}`) as HTMLElement;
-    if (!labelElement) return;
+    try {
+      // Re-render to make sure it's up to date
+      renderLabel();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      const imageBase64 = getCanvasBase64();
+      const labelName = `location-${location.name.replace(/\s+/g, '_')}-${location.id}.aml`;
+      const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
+      downloadAmlFile(amlContent, labelName);
+    } catch (error) {
+      console.error('Failed to generate AML:', error);
+    }
+  };
 
-    // Convert entire label to PNG base64
-    // Label size: 40mm x 30mm = 151px x 113px (at 96 DPI, 1mm = 3.7795px)
-    const labelWidth = 151;
-    const labelHeight = 113;
-    
-    // LocationLabel is already at correct size, so we can use it directly
-    const imageBase64 = await elementToBase64(labelElement, labelWidth, labelHeight);
-
-    // Generate .aml file with the full label image
-    const labelName = `location-${location.name.replace(/\s+/g, '_')}-${location.id}.aml`;
-    const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
-    downloadAmlFile(amlContent, labelName);
+  const handleDownloadImage = async () => {
+    try {
+      // Re-render to make sure it's up to date
+      renderLabel();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      const imageBase64 = getCanvasBase64();
+      
+      // Convert base64 to blob and download
+      const byteCharacters = atob(imageBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `location-${location.name.replace(/\s+/g, '_')}-${location.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download image:', error);
+    }
   };
 
   return (
@@ -248,58 +140,29 @@ export function LocationLabel({ location }: LocationLabelProps) {
       <div className={styles.preview}>
         <div className={styles.previewHeader}>
           <h4 className={styles.previewTitle}>Location Label Preview (40mm × 30mm)</h4>
-          <button
-            className={styles.settingsButton}
-            onClick={() => setShowSettings(!showSettings)}
-            title="Customize label"
-          >
-            <Settings2 size={18} />
-          </button>
         </div>
-        
-        {showSettings && (
-          <div className={styles.settings}>
-            <p className={styles.settingsLabel}>Customize label information:</p>
-            <div className={styles.slotGrid}>
-              {slots.map((slot, index) => (
-                <Select
-                  key={index}
-                  options={slotOptions}
-                  value={slot}
-                  onChange={(e) => handleSlotChange(index, e.target.value as LabelSlot)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
-        <div className={styles.labelWrapper} ref={labelRef}>
-          <div className={styles.label}>
-            <div className={styles.brandHeader}>
-              📍 {location.name}
-            </div>
-            <div className={styles.content}>
-              <div className={`${styles.qrContainer} qrCode`}>
-                <QRCodeCanvas
-                  value={locationUrl}
-                  size={85}
-                  level="M"
-                  includeMargin={false}
-                />
-              </div>
-              <div className={styles.info}>
-                {slots.map((slot, index) => {
-                  const value = getSlotValue(slot);
-                  if (!value) return null;
-                  return (
-                    <span key={index} className={getSlotStyle(slot)}>
-                      {value}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+        <div className={styles.labelWrapper}>
+          {/* Hidden QR code canvas that we'll draw from */}
+          <div ref={qrContainerRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
+            <QRCodeCanvas
+              value={locationUrl}
+              size={100 * SCALE}
+              level="H"
+              includeMargin={false}
+            />
           </div>
+          
+          {/* Main preview canvas */}
+          <canvas
+            ref={previewCanvasRef}
+            className={styles.labelCanvas}
+            style={{
+              width: LABEL_WIDTH,
+              height: LABEL_HEIGHT,
+              opacity: isReady ? 1 : 0,
+            }}
+          />
         </div>
       </div>
 
@@ -309,16 +172,15 @@ export function LocationLabel({ location }: LocationLabelProps) {
       </div>
 
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={handleDownloadAML}>
+        <Button variant="secondary" onClick={handleDownloadImage}>
+          <ImageIcon size={16} />
+          Download as Image
+        </Button>
+        <Button onClick={handleDownloadAML}>
           <Download size={16} />
           Download .aml
-        </Button>
-        <Button onClick={handlePrint}>
-          <Printer size={16} />
-          Print Label
         </Button>
       </div>
     </div>
   );
 }
-

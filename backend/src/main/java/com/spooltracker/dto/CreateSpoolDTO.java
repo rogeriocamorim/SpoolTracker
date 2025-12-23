@@ -3,6 +3,7 @@ package com.spooltracker.dto;
 import java.time.LocalDate;
 
 import com.spooltracker.entity.SpoolLocation;
+import com.spooltracker.entity.SpoolType;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -21,6 +22,8 @@ public record CreateSpoolDTO(
     Long storageLocationId,
     @Size(max = 500, message = "Location details must be less than 500 characters")
     String locationDetails,
+    // Spool physical type (Plastic, Refill, Cardboard)
+    SpoolType spoolType,
     @Positive(message = "Initial weight must be positive")
     Double initialWeightGrams,
     @Positive(message = "Current weight must be positive")

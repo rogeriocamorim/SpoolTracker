@@ -71,55 +71,46 @@
 .label {
   width: 151px;
   height: 113px;
-  padding: 6px;
+  padding: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   background: white;
   border: 1px solid #ccc;
   border-radius: 5px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
-.brandHeader {
-  background: black;
-  color: white;
-  font-size: 13px;
-  font-weight: 900;
-  padding: 3px 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 3px;
-  letter-spacing: -0.3px;
-  margin-bottom: 4px;
-}
-
-.content {
-  display: flex;
-  flex: 1;
-  gap: 4px;
-  padding-top: 2px;
-  align-items: flex-start;
+.labelCanvas {
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .qrContainer {
-  width: 90px;
-  height: 90px;
-  flex-shrink: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  min-width: 0; /* Allow flex item to shrink */
+}
+
+.qrContainer .qrCode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .qrContainer svg {
   width: 100%;
   height: 100%;
-}
-
-.info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 2px;
-  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .name {

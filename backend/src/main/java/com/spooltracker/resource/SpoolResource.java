@@ -14,6 +14,7 @@ import com.spooltracker.entity.Manufacturer;
 import com.spooltracker.entity.Spool;
 import com.spooltracker.entity.Settings;
 import com.spooltracker.entity.SpoolLocation;
+import com.spooltracker.entity.SpoolType;
 import com.spooltracker.service.SettingsService;
 import com.spooltracker.service.SpoolHistoryService;
 import com.spooltracker.util.ResponseHelper;
@@ -230,6 +231,7 @@ public class SpoolResource {
         spool.filamentType = filamentType;
         spool.color = color;
         spool.manufacturer = manufacturer;
+        spool.spoolType = dto.spoolType() != null ? dto.spoolType() : SpoolType.PLASTIC;
         
         // Handle location - prefer new system, fallback to legacy
         if (dto.storageLocationId() != null) {
