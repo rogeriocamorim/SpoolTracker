@@ -30,7 +30,7 @@ services:
       # CORS Configuration
       QUARKUS_HTTP_CORS: "true"
       QUARKUS_HTTP_CORS_ORIGINS: "http://192.168.2.22:3000,http://localhost:3000,http://spooltracker.local:3000,https://192.168.2.22:3443,https://192.168.2.22:3000"
-      QUARKUS_HTTP_CORS_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+      QUARKUS_HTTP_CORS_METHODS: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
       QUARKUS_HTTP_CORS_HEADERS: "Content-Type,Authorization"
     networks:
       - spooltracker-network

@@ -12,9 +12,9 @@ import { FilamentTypes } from './pages/FilamentTypes';
 import { Settings } from './pages/Settings';
 import { SpoolDetail } from './pages/SpoolDetail';
 import { ColorDetail } from './pages/ColorDetail';
-import { MyPrint } from './pages/MyPrint';
 import { Locations } from './pages/Locations';
 import { LocationDetail } from './pages/LocationDetail';
+import { PrintJobs } from './pages/PrintJobs';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,7 +45,7 @@ function App() {
                 <Route path="/materials" element={<Materials />} />
                 <Route path="/manufacturers" element={<Manufacturers />} />
                 <Route path="/filament-types" element={<FilamentTypes />} />
-                <Route path="/my-print" element={<MyPrint />} />
+                <Route path="/print-jobs" element={<PrintJobs />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </Layout>

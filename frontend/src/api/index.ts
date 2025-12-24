@@ -6,4 +6,6 @@ export { filamentTypesApi } from './filamentTypes';
 export { locationsApi } from './locations';
 export { historyApi } from './history';
 export { settingsApi } from './settings';
+export { printJobsApi } from './printJobs';
+export type { FilamentUsage, SpoolMatch, FilamentMatch, PrintJobParseResult, FilamentDeductionRequest } from './printJobs';
 

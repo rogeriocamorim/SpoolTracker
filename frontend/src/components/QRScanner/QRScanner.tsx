@@ -14,14 +14,14 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<boolean>(false);
   const scannerKey = useRef(0);
-  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const constraintAttempt = useRef(0);
 
   interface DetectedCode {
     rawValue: string;
   }
 
-  const errorTimeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleScan = (detectedCodes: DetectedCode[]) => {
     if (detectedCodes && detectedCodes.length > 0) {

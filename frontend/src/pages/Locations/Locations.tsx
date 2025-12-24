@@ -5,7 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   Plus, MapPin, Package, Edit, Trash2, 
-  ChevronRight, ChevronDown, Eye, ToggleLeft, ToggleRight
+  ChevronRight, ChevronDown, Eye
 } from 'lucide-react';
 import { locationsApi } from '../../api';
 import { Button, Input, Select, Modal } from '../../components/ui';
@@ -81,7 +81,6 @@ export function Locations() {
   const createForm = useForm<CreateLocationFormData>({
     resolver: zodResolver(createLocationSchema) as any,
     defaultValues: {
-      isActive: true,
       sortOrder: 0,
     },
   });
@@ -92,7 +91,7 @@ export function Locations() {
 
   const { data: locations = [], isLoading } = useQuery({
     queryKey: ['locations'],
-    queryFn: () => locationsApi.getAll({ activeOnly: false }),
+    queryFn: () => locationsApi.getAll(),
   });
 
   const { data: locationTree = [] } = useQuery({
@@ -129,16 +128,8 @@ export function Locations() {
     },
   });
 
-  const toggleActiveMutation = useMutation({
-    mutationFn: ({ id, active }: { id: number; active: boolean }) =>
-      active ? locationsApi.activate(id) : locationsApi.deactivate(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locations'] });
-    },
-  });
-
   const resetForm = () => {
-    createForm.reset({ isActive: true, sortOrder: 0 });
+    createForm.reset({ sortOrder: 0 });
   };
 
   const handleEdit = (location: Location) => {
@@ -147,12 +138,10 @@ export function Locations() {
       name: location.name,
       description: location.description,
       locationType: location.locationType,
-      parentId: location.parentId,
       capacity: location.capacity,
       icon: location.icon,
       color: location.color,
       sortOrder: location.sortOrder,
-      isActive: location.isActive,
     });
     setIsEditModalOpen(true);
   };
@@ -204,7 +193,7 @@ export function Locations() {
     return (
       <React.Fragment key={location.id}>
         <tr 
-          className={`${styles.locationRow} ${!location.isActive ? styles.inactive : ''}`}
+          className={styles.locationRow}
           onClick={handleRowClick}
         >
           <td style={{ paddingLeft: `${level * 24 + 16}px` }}>
@@ -226,27 +215,10 @@ export function Locations() {
             </div>
           </td>
           <td>{location.locationType || '-'}</td>
-          <td>{location.parentName || '-'}</td>
           <td className={styles.spoolCount}>
             <Package size={14} />
             {location.spoolCount || 0}
             {location.capacity && ` / ${location.capacity}`}
-          </td>
-          <td>
-            <button
-              className={styles.toggleButton}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleActiveMutation.mutate({ id: location.id, active: !location.isActive });
-              }}
-              title={location.isActive ? 'Deactivate' : 'Activate'}
-            >
-              {location.isActive ? (
-                <ToggleRight size={20} className={styles.activeToggle} />
-              ) : (
-                <ToggleLeft size={20} className={styles.inactiveToggle} />
-              )}
-            </button>
           </td>
           <td>
             <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
@@ -278,9 +250,6 @@ export function Locations() {
       </React.Fragment>
     );
   };
-
-  // Build flat list with hierarchy for display
-  const rootLocations = locations.filter(l => !l.parentId);
 
   return (
     <div className={styles.page}>
@@ -319,14 +288,12 @@ export function Locations() {
               <tr>
                 <th>NAME</th>
                 <th>TYPE</th>
-                <th>PARENT</th>
                 <th>SPOOLS</th>
-                <th>ACTIVE</th>
                 <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {locationTree.map(location => renderLocationRow(location))}
+              {[...locationTree].sort((a, b) => a.name.localeCompare(b.name)).map(location => renderLocationRow(location))}
             </tbody>
           </table>
         </div>
@@ -353,50 +320,28 @@ export function Locations() {
             )}
           />
 
-          <div className={styles.formRow}>
-            <Controller
-              name="locationType"
-              control={createForm.control}
-              render={({ field, fieldState }) => (
-                <div style={{ flex: 1 }}>
-                  <Select
-                    label="Location Type"
-                    options={locationTypeOptions}
-                    value={field.value || ''}
-                    onChange={(e) => {
-                      const newType = e.target.value;
-                      const autoCapacity = getCapacityForType(newType);
-                      field.onChange(newType);
-                      createForm.setValue('capacity', autoCapacity);
-                    }}
-                  />
-                  {fieldState.error && (
-                    <span className={styles.errorText}>{fieldState.error.message}</span>
-                  )}
-                </div>
-              )}
-            />
-            <Controller
-              name="parentId"
-              control={createForm.control}
-              render={({ field, fieldState }) => (
-                <div style={{ flex: 1 }}>
-                  <Select
-                    label="Parent Location"
-                    options={[
-                      { value: '', label: 'None (Root)' },
-                      ...rootLocations.map(l => ({ value: l.id, label: l.name })),
-                    ]}
-                    value={field.value ? String(field.value) : ''}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                  {fieldState.error && (
-                    <span className={styles.errorText}>{fieldState.error.message}</span>
-                  )}
-                </div>
-              )}
-            />
-          </div>
+          <Controller
+            name="locationType"
+            control={createForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Location Type"
+                  options={locationTypeOptions}
+                  value={field.value || ''}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    const autoCapacity = getCapacityForType(newType);
+                    field.onChange(newType);
+                    createForm.setValue('capacity', autoCapacity);
+                  }}
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
+          />
 
           <Controller
             name="description"
@@ -492,52 +437,28 @@ export function Locations() {
             )}
           />
 
-          <div className={styles.formRow}>
-            <Controller
-              name="locationType"
-              control={editForm.control}
-              render={({ field, fieldState }) => (
-                <div style={{ flex: 1 }}>
-                  <Select
-                    label="Location Type"
-                    options={locationTypeOptions}
-                    value={field.value || ''}
-                    onChange={(e) => {
-                      const newType = e.target.value;
-                      const autoCapacity = getCapacityForType(newType);
-                      field.onChange(newType);
-                      editForm.setValue('capacity', autoCapacity);
-                    }}
-                  />
-                  {fieldState.error && (
-                    <span className={styles.errorText}>{fieldState.error.message}</span>
-                  )}
-                </div>
-              )}
-            />
-            <Controller
-              name="parentId"
-              control={editForm.control}
-              render={({ field, fieldState }) => (
-                <div style={{ flex: 1 }}>
-                  <Select
-                    label="Parent Location"
-                    options={[
-                      { value: '', label: 'None (Root)' },
-                      ...rootLocations
-                        .filter(l => l.id !== selectedLocation?.id)
-                        .map(l => ({ value: l.id, label: l.name })),
-                    ]}
-                    value={field.value ? String(field.value) : ''}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                  {fieldState.error && (
-                    <span className={styles.errorText}>{fieldState.error.message}</span>
-                  )}
-                </div>
-              )}
-            />
-          </div>
+          <Controller
+            name="locationType"
+            control={editForm.control}
+            render={({ field, fieldState }) => (
+              <div>
+                <Select
+                  label="Location Type"
+                  options={locationTypeOptions}
+                  value={field.value || ''}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    const autoCapacity = getCapacityForType(newType);
+                    field.onChange(newType);
+                    editForm.setValue('capacity', autoCapacity);
+                  }}
+                />
+                {fieldState.error && (
+                  <span className={styles.errorText}>{fieldState.error.message}</span>
+                )}
+              </div>
+            )}
+          />
 
           <Controller
             name="description"

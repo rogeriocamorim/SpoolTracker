@@ -8,8 +8,8 @@ import {
   Palette,
   Settings,
   ScanLine,
-  Printer,
-  MapPin
+  MapPin,
+  Upload
 } from 'lucide-react';
 import { QRScanner } from '../QRScanner';
 import { DualQRScanner } from '../DualQRScanner';
@@ -23,7 +23,7 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/spools', label: 'Spools', icon: Package },
   { path: '/locations', label: 'Locations', icon: MapPin },
-  { path: '/my-print', label: 'My Print', icon: Printer },
+  { path: '/print-jobs', label: 'Print Job', icon: Upload },
   { path: '/materials', label: 'Materials', icon: Layers },
   { path: '/filament-types', label: 'Filament Types', icon: Palette },
   { path: '/manufacturers', label: 'Manufacturers', icon: Factory },

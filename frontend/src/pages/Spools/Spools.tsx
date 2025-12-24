@@ -7,8 +7,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { createSpoolSchema, updateSpoolSchema, type CreateSpoolFormData, type UpdateSpoolFormData } from '../../schemas/spool';
 import { 
   Plus, Search, Grid, List, Package, ScanLine, 
-  ChevronUp, ChevronDown, ExternalLink, QrCode, Edit, Trash2,
-  TableProperties, ArrowUpDown, Columns, Eye, CheckSquare, Square, Move
+  ChevronUp, ChevronDown, QrCode, Edit, Trash2,
+  TableProperties, ArrowUpDown, Eye, CheckSquare, Square, Move
 } from 'lucide-react';
 import { spoolsApi, materialsApi, manufacturersApi, filamentTypesApi, locationsApi, settingsApi } from '../../api';
 import { SpoolCard } from '../../components/SpoolCard';
@@ -260,6 +260,7 @@ export function Spools() {
       colorId: spool.colorId,
       manufacturerId: spool.manufacturerId,
       storageLocationId: spool.storageLocationId,
+      spoolType: spool.spoolType,
       initialWeightGrams: spool.initialWeightGrams,
       currentWeightGrams: spool.currentWeightGrams,
       purchasePrice: spool.purchasePrice,
@@ -276,12 +277,12 @@ export function Spools() {
     setIsDeleteModalOpen(true);
   };
 
-  // Move form state (simple form, keeping manual state)
-  const [moveFormData, setMoveFormData] = useState<{ location?: SpoolLocation; locationDetails?: string }>({});
+  // Move form state
+  const [moveStorageLocationId, setMoveStorageLocationId] = useState<number | undefined>(undefined);
 
   const handleMove = (spool: Spool) => {
     setSelectedSpool(spool);
-    setMoveFormData({ location: spool.location, locationDetails: spool.locationDetails });
+    setMoveStorageLocationId(spool.storageLocationId);
     setIsMoveModalOpen(true);
   };
 
@@ -375,16 +376,6 @@ export function Spools() {
     }
   };
 
-  const handleSubmitMove = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedSpool && moveFormData.location) {
-      updateLocationMutation.mutate({
-        id: selectedSpool.id,
-        location: moveFormData.location,
-        details: moveFormData.locationDetails,
-      });
-    }
-  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -498,10 +489,12 @@ export function Spools() {
   };
 
   const getColorOptions = () => {
-    return selectedTypeColors.map(c => ({
-      value: c.id,
-      label: c.name,
-    }));
+    return [...selectedTypeColors]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(c => ({
+        value: c.id,
+        label: c.name,
+      }));
   };
 
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
@@ -605,10 +598,6 @@ export function Spools() {
             </button>
           </div>
 
-          <Button variant="secondary" size="sm">
-            <Columns size={16} />
-            Columns
-          </Button>
         </div>
       </div>
 
@@ -692,7 +681,6 @@ export function Spools() {
                 <SortHeader field="rgb">RGB #</SortHeader>
                 <SortHeader field="spools"># SPOOLS</SortHeader>
                 <SortHeader field="weight">TOTAL (G)</SortHeader>
-                <th>WEBSITE</th>
                 <th>ACTIONS</th>
               </tr>
             </thead>
@@ -765,18 +753,6 @@ export function Spools() {
                     <td className={styles.hexCode}>{group.hexCode}</td>
                     <td className={styles.spoolCount}>{group.spoolCount}</td>
                     <td className={styles.weight}>{group.totalWeight.toFixed(0)}</td>
-                    <td>
-                      {group.productCode && (
-                        <a 
-                          href={`https://store.bambulab.com/products/${group.productCode}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.websiteLink}
-                        >
-                          Link <ExternalLink size={12} />
-                        </a>
-                      )}
-                    </td>
                     <td>
                       <div className={styles.actionsColumn}>
                         <div className={styles.actions}>
@@ -1156,6 +1132,45 @@ export function Spools() {
         <form onSubmit={editForm.handleSubmit(handleSubmitEdit)} className={styles.form}>
           <div className={styles.formRow}>
             <Controller
+              name="spoolType"
+              control={editForm.control}
+              render={({ field }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Spool Type"
+                    options={spoolTypeOptions}
+                    value={field.value || 'PLASTIC'}
+                    onChange={(e) => field.onChange(e.target.value as SpoolType)}
+                  />
+                </div>
+              )}
+            />
+            <Controller
+              name="storageLocationId"
+              control={editForm.control}
+              render={({ field, fieldState }) => (
+                <div style={{ flex: 1 }}>
+                  <Select
+                    label="Location"
+                    options={[
+                      { value: '', label: 'Select a location...' },
+                      ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+                    ]}
+                    value={field.value ? String(field.value) : ''}
+                    onChange={(e) => {
+                      field.onChange(e.target.value ? Number(e.target.value) : undefined);
+                    }}
+                  />
+                  {fieldState.error && (
+                    <span className={styles.errorText}>{fieldState.error.message}</span>
+                  )}
+                </div>
+              )}
+            />
+          </div>
+
+          <div className={styles.formRow}>
+            <Controller
               name="initialWeightGrams"
               control={editForm.control}
               render={({ field, fieldState }) => (
@@ -1190,24 +1205,36 @@ export function Spools() {
           </div>
 
           <Controller
-            name="storageLocationId"
+            name="purchasePrice"
             control={editForm.control}
             render={({ field, fieldState }) => (
-              <div>
-                <Select
-                  label="Storage Location"
-                  options={[
-                    { value: '', label: 'Select a location...' },
-                    ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
-                  ]}
-                  value={field.value ? String(field.value) : ''}
-                  onChange={(e) => {
-                    field.onChange(e.target.value ? Number(e.target.value) : undefined);
-                  }}
+              <div className={styles.formRow}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Purchase Price"
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    error={fieldState.error?.message}
+                  />
+                </div>
+                <Controller
+                  name="purchaseCurrency"
+                  control={editForm.control}
+                  render={({ field: currencyField, fieldState: currencyState }) => (
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        label="Currency"
+                        placeholder="CAD"
+                        {...currencyField}
+                        value={currencyField.value || ''}
+                        error={currencyState.error?.message}
+                      />
+                    </div>
+                  )}
                 />
-                {fieldState.error && (
-                  <span className={styles.errorText}>{fieldState.error.message}</span>
-                )}
               </div>
             )}
           />
@@ -1292,30 +1319,34 @@ export function Spools() {
       {/* Move Modal */}
       <Modal
         isOpen={isMoveModalOpen}
-        onClose={() => { setIsMoveModalOpen(false); setSelectedSpool(null); }}
+        onClose={() => { setIsMoveModalOpen(false); setSelectedSpool(null); setMoveStorageLocationId(undefined); }}
         title="Move Spool"
         size="sm"
       >
-        <form onSubmit={handleSubmitMove} className={styles.form}>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (selectedSpool && moveStorageLocationId) {
+            updateLocationMutation.mutate({
+              id: selectedSpool.id,
+              storageLocationId: moveStorageLocationId,
+            });
+          }
+        }} className={styles.form}>
           <Select
             label="New Location"
-            options={locationOptions.slice(1)}
-            value={moveFormData.location || ''}
-            onChange={(e) => setMoveFormData({ ...moveFormData, location: e.target.value as SpoolLocation })}
-          />
-
-          <Input
-            label="Location Details"
-            placeholder="e.g., Slot 1, Rack A-3"
-            value={moveFormData.locationDetails || ''}
-            onChange={(e) => setMoveFormData({ ...moveFormData, locationDetails: e.target.value })}
+            options={[
+              { value: '', label: 'Select a location...' },
+              ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+            ]}
+            value={moveStorageLocationId ? String(moveStorageLocationId) : ''}
+            onChange={(e) => setMoveStorageLocationId(e.target.value ? Number(e.target.value) : undefined)}
           />
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsMoveModalOpen(false); setSelectedSpool(null); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsMoveModalOpen(false); setSelectedSpool(null); setMoveStorageLocationId(undefined); }}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={updateLocationMutation.isPending}>
+            <Button type="submit" isLoading={updateLocationMutation.isPending} disabled={!moveStorageLocationId}>
               Move Spool
             </Button>
           </div>
@@ -1325,33 +1356,31 @@ export function Spools() {
       {/* Bulk Move Modal */}
       <Modal
         isOpen={isBulkMoveModalOpen}
-        onClose={() => { setIsBulkMoveModalOpen(false); }}
+        onClose={() => { setIsBulkMoveModalOpen(false); setMoveStorageLocationId(undefined); }}
         title={`Move ${selectedSpoolIds.size} Spool${selectedSpoolIds.size !== 1 ? 's' : ''}`}
         size="sm"
       >
         <form onSubmit={(e) => {
           e.preventDefault();
-          handleBulkMove(moveFormData.location, undefined, moveFormData.locationDetails);
+          if (moveStorageLocationId) {
+            handleBulkMove(undefined, moveStorageLocationId, undefined);
+          }
         }} className={styles.form}>
           <Select
             label="New Location"
-            options={locationOptions.slice(1)}
-            value={moveFormData.location || ''}
-            onChange={(e) => setMoveFormData({ ...moveFormData, location: e.target.value as SpoolLocation })}
-          />
-
-          <Input
-            label="Location Details"
-            placeholder="e.g., Slot 1, Rack A-3"
-            value={moveFormData.locationDetails || ''}
-            onChange={(e) => setMoveFormData({ ...moveFormData, locationDetails: e.target.value })}
+            options={[
+              { value: '', label: 'Select a location...' },
+              ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+            ]}
+            value={moveStorageLocationId ? String(moveStorageLocationId) : ''}
+            onChange={(e) => setMoveStorageLocationId(e.target.value ? Number(e.target.value) : undefined)}
           />
 
           <div className={styles.formActions}>
-            <Button type="button" variant="secondary" onClick={() => { setIsBulkMoveModalOpen(false); }}>
+            <Button type="button" variant="secondary" onClick={() => { setIsBulkMoveModalOpen(false); setMoveStorageLocationId(undefined); }}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={bulkMoveMutation.isPending}>
+            <Button type="submit" isLoading={bulkMoveMutation.isPending} disabled={!moveStorageLocationId}>
               Move {selectedSpoolIds.size} Spool{selectedSpoolIds.size !== 1 ? 's' : ''}
             </Button>
           </div>

@@ -1,0 +1,406 @@
+.page {
+  padding: var(--spacing-lg);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--spacing-xl);
+  text-align: center;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+/* Upload Area */
+.uploadArea {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xxl);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  background: var(--color-bg-secondary);
+}
+
+.uploadArea:hover,
+.uploadArea.dragging {
+  border-color: var(--color-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.uploadIcon {
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-md);
+}
+
+.uploadText {
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.uploadHint {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin-top: 0;
+}
+
+.fileInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.loading {
+  margin-top: var(--spacing-md);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* Messages */
+.errorMessage,
+.successMessage {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-weight: 500;
+}
+
+.errorMessage {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.successMessage {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* Result */
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+/* Summary Card */
+.summaryCard {
+  padding: var(--spacing-lg);
+}
+
+.fileName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-md);
+  word-break: break-all;
+}
+
+.summaryStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.stat svg {
+  color: var(--color-primary);
+}
+
+/* Filament List */
+.filamentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Filament Card */
+.filamentCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.filamentHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.filamentHeader:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.filamentInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+.colorSwatch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.filamentDetails {
+  display: flex;
+  flex-direction: column;
+}
+
+.filamentType {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.filamentColor {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
+.filamentUsage {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+}
+
+.usageAmount {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.usageMeters {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.filamentStatus {
+  min-width: 120px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.statusOk {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success);
+}
+
+.statusWarning {
+  background: rgba(234, 179, 8, 0.1);
+  color: var(--color-warning);
+}
+
+.statusError {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+}
+
+/* Spool List */
+.spoolList {
+  border-top: 1px solid var(--color-border);
+  padding: var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+}
+
+.noMatches {
+  padding: var(--spacing-md);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.spoolOption {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.spoolOption:hover {
+  background: var(--color-bg-secondary);
+}
+
+.spoolOption.spoolSelected {
+  background: rgba(var(--color-primary-rgb), 0.1);
+  border: 1px solid var(--color-primary);
+}
+
+.spoolColor .colorSwatch {
+  width: 24px;
+  height: 24px;
+}
+
+.spoolInfo {
+  flex: 1;
+}
+
+.spoolName {
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.spoolMeta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.spoolMatch {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.matchScore {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.matchExcellent {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success);
+}
+
+.matchGood {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-primary);
+}
+
+.matchFair {
+  background: rgba(234, 179, 8, 0.1);
+  color: var(--color-warning);
+}
+
+.lowWarning {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.spoolRadio {
+  display: flex;
+  align-items: center;
+}
+
+.spoolRadio input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.successActions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-lg);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .page {
+    padding: var(--spacing-md);
+  }
+
+  .filamentHeader {
+    flex-wrap: wrap;
+  }
+
+  .filamentUsage {
+    order: 3;
+    width: 100%;
+    margin-top: var(--spacing-xs);
+  }
+
+  .filamentStatus {
+    order: 2;
+  }
+
+  .summaryStats {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
+

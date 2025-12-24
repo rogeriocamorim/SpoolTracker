@@ -214,7 +214,7 @@ export function FilamentTypes() {
                     <h4>Colors</h4>
                     {type.colors && type.colors.length > 0 ? (
                       <div className={styles.colorGrid}>
-                        {type.colors.map((color) => (
+                        {[...type.colors].sort((a, b) => a.name.localeCompare(b.name)).map((color) => (
                           <div key={color.id} className={styles.colorItem}>
                             <div 
                               className={styles.colorSwatch}

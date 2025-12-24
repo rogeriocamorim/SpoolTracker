@@ -5,44 +5,17 @@ import {
   ArrowLeft, MapPin, Weight, Package, QrCode, Edit, Trash2,
   Thermometer, ExternalLink, Circle, Plus, Search
 } from 'lucide-react';
-import { spoolsApi, filamentTypesApi } from '../../api';
+import { spoolsApi, filamentTypesApi, locationsApi } from '../../api';
 import { SpoolLabel } from '../../components/SpoolLabel';
 import { Button, Badge, Modal, Select, Input } from '../../components/ui';
-import type { Spool, SpoolLocation, SpoolType, CreateSpoolDTO, PagedResponse } from '../../types';
+import type { Spool, SpoolType, CreateSpoolDTO, PagedResponse } from '../../types';
 import styles from './ColorDetail.module.css';
-
-const locationLabels: Record<string, string> = {
-  AMS: 'AMS',
-  PRINTER: 'Printer',
-  RACK: 'Rack',
-  STORAGE: 'Storage',
-  IN_USE: 'In Use',
-  EMPTY: 'Empty',
-};
-
-const locationVariants: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
-  AMS: 'success',
-  PRINTER: 'info',
-  RACK: 'default',
-  STORAGE: 'default',
-  IN_USE: 'warning',
-  EMPTY: 'danger',
-};
 
 const spoolTypeLabels: Record<string, string> = {
   PLASTIC: 'Plastic Spool',
   REFILL: 'Refill',
   CARDBOARD: 'Cardboard',
 };
-
-const locationOptions = [
-  { value: 'AMS', label: 'AMS' },
-  { value: 'PRINTER', label: 'Printer' },
-  { value: 'RACK', label: 'Rack' },
-  { value: 'STORAGE', label: 'Storage' },
-  { value: 'IN_USE', label: 'In Use' },
-  { value: 'EMPTY', label: 'Empty' },
-];
 
 const spoolTypeOptions = [
   { value: 'PLASTIC', label: 'Plastic Spool' },
@@ -83,6 +56,11 @@ export function ColorDetail() {
     queryKey: ['filament-types', typeId],
     queryFn: () => filamentTypesApi.getById(Number(typeId)),
     enabled: !!typeId,
+  });
+
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations'],
+    queryFn: () => locationsApi.getAll(),
   });
 
   // Filter spools by manufacturer, type, and color
@@ -160,13 +138,13 @@ export function ColorDetail() {
   const handleEdit = (spool: Spool) => {
     setSelectedSpool(spool);
     setFormData({
-      location: spool.location,
-      locationDetails: spool.locationDetails,
+      storageLocationId: spool.storageLocationId,
       spoolType: spool.spoolType,
       initialWeightGrams: spool.initialWeightGrams,
       currentWeightGrams: spool.currentWeightGrams,
       purchasePrice: spool.purchasePrice,
       purchaseCurrency: spool.purchaseCurrency,
+      colorNumber: spool.colorNumber,
       notes: spool.notes,
     });
     setIsEditModalOpen(true);
@@ -422,25 +400,10 @@ export function ColorDetail() {
                 <div key={spool.id} className={styles.spoolItem}>
                   <div className={styles.spoolMeta}>
                     <div className={styles.spoolLocation}>
-                      {spool.storageLocationId ? (
-                        <Badge variant="default" size="sm">
-                          <MapPin size={12} />
-                          {spool.storageLocationName || 'Unknown'}
-                        </Badge>
-                      ) : spool.location ? (
-                        <Badge variant={locationVariants[spool.location] || 'default'} size="sm">
-                          <MapPin size={12} />
-                          {locationLabels[spool.location] || spool.location}
-                        </Badge>
-                      ) : (
-                        <Badge variant="default" size="sm">
-                          <MapPin size={12} />
-                          No location
-                        </Badge>
-                      )}
-                      {spool.locationDetails && (
-                        <span className={styles.locationDetails}>{spool.locationDetails}</span>
-                      )}
+                      <Badge variant="default" size="sm">
+                        <MapPin size={12} />
+                        {spool.storageLocationName || 'No location'}
+                      </Badge>
                     </div>
                     {spool.spoolType && (
                       <span className={styles.spoolType}>{spoolTypeLabels[spool.spoolType]}</span>
@@ -509,19 +472,15 @@ export function ColorDetail() {
               onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as SpoolType })}
             />
             <Select
-              label="Location"
-              options={locationOptions}
-              value={formData.location || ''}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value as SpoolLocation })}
+              label="Storage Location"
+              options={[
+                { value: '', label: 'Select a location...' },
+                ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+              ]}
+              value={formData.storageLocationId ? String(formData.storageLocationId) : ''}
+              onChange={(e) => setFormData({ ...formData, storageLocationId: e.target.value ? Number(e.target.value) : undefined })}
             />
           </div>
-
-          <Input
-            label="Location Details"
-            placeholder="e.g., Slot 1, Rack A-3"
-            value={formData.locationDetails || ''}
-            onChange={(e) => setFormData({ ...formData, locationDetails: e.target.value })}
-          />
 
           <div className={styles.formRow}>
             <Input
@@ -607,19 +566,15 @@ export function ColorDetail() {
               onChange={(e) => setFormData({ ...formData, spoolType: e.target.value as SpoolType })}
             />
             <Select
-              label="Location"
-              options={locationOptions}
-              value={formData.location || 'STORAGE'}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value as SpoolLocation })}
+              label="Storage Location"
+              options={[
+                { value: '', label: 'Select a location...' },
+                ...locations.map(loc => ({ value: loc.id, label: loc.fullPath || loc.name })),
+              ]}
+              value={formData.storageLocationId ? String(formData.storageLocationId) : ''}
+              onChange={(e) => setFormData({ ...formData, storageLocationId: e.target.value ? Number(e.target.value) : undefined })}
             />
           </div>
-
-          <Input
-            label="Location Details"
-            placeholder="e.g., Slot 1, Rack A-3"
-            value={formData.locationDetails || ''}
-            onChange={(e) => setFormData({ ...formData, locationDetails: e.target.value })}
-          />
 
           <div className={styles.formRow}>
             <Input
@@ -682,17 +637,9 @@ export function ColorDetail() {
           <p>Are you sure you want to delete this spool?</p>
           {selectedSpool && (
             <div className={styles.deleteSpoolInfo}>
-              {selectedSpool.storageLocationId ? (
-                <Badge variant="default">
-                  {selectedSpool.storageLocationName || 'Unknown'}
-                </Badge>
-              ) : selectedSpool.location ? (
-                <Badge variant={locationVariants[selectedSpool.location] || 'default'}>
-                  {locationLabels[selectedSpool.location] || selectedSpool.location}
-                </Badge>
-              ) : (
-                <Badge variant="default">No location</Badge>
-              )}
+              <Badge variant="default">
+                {selectedSpool.storageLocationName || 'No location'}
+              </Badge>
               <span>{selectedSpool.currentWeightGrams?.toFixed(0)}g remaining</span>
             </div>
           )}

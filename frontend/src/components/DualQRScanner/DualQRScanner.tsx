@@ -22,7 +22,7 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<boolean>(false);
   const scannerKey = useRef(0);
-  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const constraintAttempt = useRef(0);
 
   interface DetectedCode {
@@ -194,7 +194,7 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
     scannerKey.current += 1;
   };
 
-  const successTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
