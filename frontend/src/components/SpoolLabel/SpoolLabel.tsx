@@ -30,8 +30,10 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
   const colorProductCode = spool?.colorProductCode || '';
   const colorNumber = spool?.colorNumber || '';
   
-  // Generate the URL that the QR code will link to
-  const spoolUrl = spoolUid ? `${window.location.origin}/spools/${spoolUid}` : '';
+  // Generate the path for QR code (shorter = smaller QR = easier to scan)
+  const spoolPath = spoolUid ? `/spools/${spoolUid}` : '';
+  // Full URL for display
+  const spoolUrl = spoolUid ? `${window.location.origin}${spoolPath}` : '';
   
   // Product code for display (Bambu Lab code like 33102)
   const productCode = colorProductCode;
@@ -238,12 +240,12 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
             }}
           />
           {/* Hidden QRCodeCanvas to render QR code for drawing onto main canvas */}
-          {spoolUrl && (
+          {spoolPath && (
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
               <QRCodeCanvas
-                value={spoolUrl}
+                value={spoolPath}
                 size={QR_CODE_SIZE * SCALE}
-                level="H"
+                level="L"
                 includeMargin={false}
               />
             </div>
