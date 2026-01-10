@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SpoolTracker Production Deployment Script
-# Deploys to Docker host at 192.168.2.22
+# Deploys to Docker host at 192.168.2.13
 # Smart deployment: only deploys changed components
 
 set -e  # Exit on error
@@ -45,7 +45,7 @@ else
     echo "⚠️  Warning: .env.deploy not found. Using default/environment values."
 fi
 
-REMOTE_HOST="${REMOTE_HOST:-192.168.2.22}"
+REMOTE_HOST="${REMOTE_HOST:-192.168.2.13}"
 REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_PASSWORD="${REMOTE_PASSWORD}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/spooltracker}"
@@ -414,12 +414,12 @@ eval "$SSH_CMD $REMOTE_USER@$REMOTE_HOST" << 'ENDSSH'
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
           -keyout "$SSL_DIR/key.pem" \
           -out "$SSL_DIR/cert.pem" \
-          -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.22" \
-          -addext "subjectAltName=IP:192.168.2.22,DNS:localhost,DNS:192.168.2.22" 2>/dev/null || \
+          -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.13" \
+          -addext "subjectAltName=IP:192.168.2.13,DNS:localhost,DNS:192.168.2.13" 2>/dev/null || \
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
           -keyout "$SSL_DIR/key.pem" \
           -out "$SSL_DIR/cert.pem" \
-          -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.22"
+          -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.13"
         chmod 600 "$SSL_DIR/key.pem"
         chmod 644 "$SSL_DIR/cert.pem"
         echo "   ✅ SSL certificates generated"
@@ -500,7 +500,7 @@ echo ""
 echo "🌐 Application URLs:"
 echo "   Frontend (HTTP): http://$REMOTE_HOST:3000"
 echo "   Frontend (HTTPS): https://$REMOTE_HOST:3443"
-echo "   Backend API: http://$REMOTE_HOST:8080/api"
+echo "   Backend API: http://$REMOTE_HOST:9002/api"
 echo ""
 echo "📸 For camera access, use HTTPS: https://$REMOTE_HOST:3443"
 echo "   (You'll need to accept the security warning for the self-signed certificate)"

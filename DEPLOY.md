@@ -4,8 +4,8 @@ Deploy SpoolTracker to your Docker server with Portainer.
 
 ## Prerequisites
 
-- Docker server at `192.168.2.22` with Portainer installed
-- MariaDB running on `192.168.2.22:3306` with database `spooltracker`
+- Docker server at `192.168.2.13` with Portainer installed
+- MariaDB running on `192.168.2.13:3306` with database `spooltracker`
 - Git installed on your machine
 
 ## Option 1: Deploy via Portainer Git Repository (Recommended)
@@ -25,7 +25,7 @@ git push -u origin main
 
 ### Step 2: Deploy in Portainer
 
-1. Open Portainer at `http://192.168.2.22:9000`
+1. Open Portainer at `http://192.168.2.13:9000`
 2. Go to **Stacks** → **Add Stack**
 3. Select **Repository**
 4. Enter your Git repository URL
@@ -46,14 +46,14 @@ Portainer will:
 cd /Users/rogerio.camorim/code/pessoal/SpoolTracker
 
 # Copy entire project to server
-scp -r . user@192.168.2.22:/opt/spooltracker/
+scp -r . user@192.168.2.13:/opt/spooltracker/
 ```
 
 ### Step 2: Build and run on server
 
 ```bash
 # SSH into server
-ssh user@192.168.2.22
+ssh user@192.168.2.13
 
 # Navigate to project
 cd /opt/spooltracker
@@ -84,14 +84,14 @@ docker save spooltracker-backend:latest | gzip > spooltracker-backend.tar.gz
 docker save spooltracker-frontend:latest | gzip > spooltracker-frontend.tar.gz
 
 # Transfer to server
-scp spooltracker-*.tar.gz user@192.168.2.22:/tmp/
+scp spooltracker-*.tar.gz user@192.168.2.13:/tmp/
 ```
 
 ### Step 3: Load images on server
 
 ```bash
 # SSH into server
-ssh user@192.168.2.22
+ssh user@192.168.2.13
 
 # Load images
 docker load < /tmp/spooltracker-backend.tar.gz
@@ -110,10 +110,10 @@ services:
     container_name: spooltracker-backend
     image: spooltracker-backend:latest
     ports:
-      - "8080:8080"
+      - "9002:9002"
     environment:
       QUARKUS_DATASOURCE_DB_KIND: mariadb
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mariadb://192.168.2.22:3306/spooltracker
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mariadb://192.168.2.13:3306/spooltracker
       QUARKUS_DATASOURCE_USERNAME: root
       QUARKUS_DATASOURCE_PASSWORD: "!#q1w2e3r4#!MariaDB"
       QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
@@ -135,8 +135,8 @@ services:
 
 After deployment:
 
-- **Frontend**: http://192.168.2.22:3000
-- **Backend API**: http://192.168.2.22:8080/api
+- **Frontend**: http://192.168.2.13:3000
+- **Backend API**: http://192.168.2.13:9002/api
 
 ## Environment Variables
 
@@ -144,7 +144,7 @@ After deployment:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `QUARKUS_DATASOURCE_JDBC_URL` | MariaDB connection URL | `jdbc:mariadb://192.168.2.22:3306/spooltracker` |
+| `QUARKUS_DATASOURCE_JDBC_URL` | MariaDB connection URL | `jdbc:mariadb://192.168.2.13:3306/spooltracker` |
 | `QUARKUS_DATASOURCE_USERNAME` | Database username | `root` |
 | `QUARKUS_DATASOURCE_PASSWORD` | Database password | - |
 | `QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION` | Schema mode: `update`, `drop-and-create`, `none` | `update` |
@@ -167,7 +167,7 @@ docker logs spooltracker-frontend
 ### Verify backend health
 
 ```bash
-curl http://192.168.2.22:8080/api/materials
+curl http://192.168.2.13:9002/api/materials
 ```
 
 ### Database connection issues

@@ -29,8 +29,10 @@ export function LocationLabel({ location }: LocationLabelProps) {
   // Check if data is ready
   const isDataReady = Boolean(locationId && locationName);
   
-  // Generate the URL that the QR code will link to
-  const locationUrl = locationId ? `${window.location.origin}/locations/${locationId}` : '';
+  // Generate the path for QR code (shorter = smaller QR = easier to scan)
+  const locationPath = locationId ? `/locations/${locationId}` : '';
+  // Full URL for display
+  const locationUrl = locationId ? `${window.location.origin}${locationPath}` : '';
 
   const renderLabel = useCallback(() => {
     if (!isDataReady) return;
@@ -168,10 +170,10 @@ export function LocationLabel({ location }: LocationLabelProps) {
 
         <div className={styles.labelWrapper}>
           {/* Hidden QR code canvas that we'll draw from */}
-          {locationUrl && (
+          {locationPath && (
             <div ref={qrContainerRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
               <QRCodeCanvas
-                value={locationUrl}
+                value={locationPath}
                 size={100 * SCALE}
                 level="H"
                 includeMargin={false}

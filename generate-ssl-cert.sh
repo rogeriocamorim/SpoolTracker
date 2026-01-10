@@ -14,13 +14,13 @@ mkdir -p "$CERT_DIR"
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout "$KEY_FILE" \
   -out "$CERT_FILE" \
-  -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.22" \
-  -addext "subjectAltName=IP:192.168.2.22,DNS:localhost,DNS:192.168.2.22"
+  -subj "/C=US/ST=State/L=City/O=SpoolTracker/CN=192.168.2.13" \
+  -addext "subjectAltName=IP:192.168.2.13,DNS:localhost,DNS:192.168.2.13"
 
 echo "✅ SSL certificate generated successfully!"
 echo "   Certificate: $CERT_FILE"
 echo "   Private Key: $KEY_FILE"
 echo ""
 echo "⚠️  Note: You'll need to accept the security warning in your browser"
-echo "   when first accessing https://192.168.2.22:3000"
+echo "   when first accessing https://192.168.2.13:3000"
 

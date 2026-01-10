@@ -9,7 +9,7 @@ if [ -f ".env.deploy" ]; then
     export $(grep -v '^#' .env.deploy | xargs)
 fi
 
-REMOTE_HOST="${REMOTE_HOST:-192.168.2.22}"
+REMOTE_HOST="${REMOTE_HOST:-192.168.2.13}"
 REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_PASSWORD="${REMOTE_PASSWORD}"
 SSL_DIR="/opt/spooltracker/ssl"
@@ -103,7 +103,7 @@ if [ "$OS" == "macos" ]; then
         echo ""
         echo "📋 Next steps:"
         echo "   1. Open Keychain Access (Applications > Utilities)"
-        echo "   2. Search for '192.168.2.22' or 'SpoolTracker'"
+        echo "   2. Search for '192.168.2.13' or 'SpoolTracker'"
         echo "   3. Double-click the certificate"
         echo "   4. Expand 'Trust' section"
         echo "   5. Set 'When using this certificate' to 'Always Trust'"

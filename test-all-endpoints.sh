@@ -2,9 +2,9 @@
 
 # Test script for all SpoolTracker API endpoints
 # Usage: ./test-all-endpoints.sh [base_url]
-# Example: ./test-all-endpoints.sh http://192.168.2.22:3000
+# Example: ./test-all-endpoints.sh http://192.168.2.13:9002
 
-BASE_URL="${1:-http://localhost:8080}"
+BASE_URL="${1:-http://localhost:9002}"
 API_BASE="${BASE_URL}/api"
 
 # Colors for output

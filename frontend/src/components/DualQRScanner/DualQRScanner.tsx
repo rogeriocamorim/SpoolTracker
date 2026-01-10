@@ -313,14 +313,26 @@ export function DualQRScanner({ onClose, onSuccess }: DualQRScannerProps) {
                 constraintAttempt.current === 0
                   ? {
                       facingMode: { ideal: 'environment' },
-                      width: { ideal: 1280 },
-                      height: { ideal: 720 }
+                      width: { ideal: 1920 },
+                      height: { ideal: 1080 },
+                      // @ts-ignore - advanced constraints for focus
+                      focusMode: { ideal: 'continuous' },
+                      // @ts-ignore - try to set close focus distance (in meters, 0.1 = 10cm)
+                      focusDistance: { ideal: 0.1 }
                     }
                   : constraintAttempt.current === 1
                   ? {
-                      facingMode: 'environment'
+                      facingMode: 'user',
+                      width: { ideal: 1920 },
+                      height: { ideal: 1080 },
+                      // @ts-ignore
+                      focusMode: { ideal: 'continuous' }
                     }
-                  : undefined
+                  : {
+                      // Last resort: high resolution, any camera
+                      width: { ideal: 1920 },
+                      height: { ideal: 1080 }
+                    }
               }
               styles={{
                 container: {

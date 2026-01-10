@@ -15,9 +15,9 @@ Chrome and other modern browsers require HTTPS to access the camera. This guide 
    ```
 
 3. **Access the application via HTTPS:**
-   - Open: `https://192.168.2.22:3443`
+   - Open: `https://192.168.2.13:3443`
    - You'll see a security warning (this is normal for self-signed certificates)
-   - Click "Advanced" → "Proceed to 192.168.2.22 (unsafe)"
+   - Click "Advanced" → "Proceed to 192.168.2.13 (unsafe)"
 
 4. **Allow camera permissions:**
    - Chrome will now allow you to grant camera permissions
