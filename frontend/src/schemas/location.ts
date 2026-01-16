@@ -2,8 +2,14 @@ import { z } from 'zod';
 
 export const createLocationSchema = z.object({
   name: z.string().min(1, 'Location name is required').max(100, 'Name must be less than 100 characters'),
-  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  locationType: z.string().max(50, 'Location type must be less than 50 characters').optional(),
+  description: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().max(500, 'Description must be less than 500 characters').optional()
+  ),
+  locationType: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().max(50, 'Location type must be less than 50 characters').optional()
+  ),
   parentId: z.number().optional(),
   capacity: z.union([
     z.number().int().positive('Capacity must be a positive integer'),
@@ -15,8 +21,14 @@ export const createLocationSchema = z.object({
     z.undefined(),
     z.null().transform(() => undefined),
   ]).optional(),
-  icon: z.string().max(50).optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color must be a valid hex code').optional(),
+  icon: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().max(50).optional()
+  ),
+  color: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color must be a valid hex code').optional()
+  ),
   sortOrder: z.union([
     z.number().int().min(0),
     z.string().transform((val) => {

@@ -1,6 +1,7 @@
 package com.spooltracker.exception;
 
 import com.spooltracker.dto.ErrorResponse;
+import jakarta.persistence.PersistenceException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.BadRequestException;
@@ -28,7 +29,8 @@ public class GlobalExceptionHandler implements ExceptionMapper<Exception> {
     public Response toResponse(Exception exception) {
         String path = uriInfo != null ? uriInfo.getPath() : "unknown";
         
-        LOG.errorf(exception, "Unhandled exception at path: %s", path);
+        LOG.errorf(exception, "Unhandled exception at path: %s - Type: %s - Message: %s", 
+            path, exception.getClass().getName(), exception.getMessage());
 
         if (exception instanceof NotFoundException) {
             return handleNotFoundException((NotFoundException) exception, path);
@@ -45,12 +47,34 @@ public class GlobalExceptionHandler implements ExceptionMapper<Exception> {
         if (exception instanceof IllegalArgumentException) {
             return handleIllegalArgumentException((IllegalArgumentException) exception, path);
         }
+        
+        // Handle JPA/Hibernate persistence exceptions
+        if (exception instanceof PersistenceException) {
+            return handlePersistenceException((PersistenceException) exception, path);
+        }
+        
+        // Check for Hibernate constraint violation wrapped in other exceptions
+        Throwable cause = exception.getCause();
+        while (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException) {
+                return handleHibernateConstraintViolation(
+                    (org.hibernate.exception.ConstraintViolationException) cause, path);
+            }
+            if (cause instanceof ConstraintViolationException) {
+                return handleConstraintViolationException((ConstraintViolationException) cause, path);
+            }
+            cause = cause.getCause();
+        }
 
-        // Generic exception handler
+        // Generic exception handler - include more details for debugging
+        String errorMessage = exception.getMessage() != null 
+            ? "Error: " + exception.getMessage()
+            : "An unexpected error occurred";
+        
         return Response
             .status(Response.Status.INTERNAL_SERVER_ERROR)
             .entity(new ErrorResponse(
-                "An unexpected error occurred",
+                errorMessage,
                 "INTERNAL_SERVER_ERROR",
                 Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
                 path
@@ -126,6 +150,63 @@ public class GlobalExceptionHandler implements ExceptionMapper<Exception> {
             violation.getMessage(),
             violation.getInvalidValue()
         );
+    }
+    
+    private Response handlePersistenceException(PersistenceException exception, String path) {
+        String message = "Database operation failed";
+        Throwable cause = exception.getCause();
+        
+        if (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException) {
+                return handleHibernateConstraintViolation(
+                    (org.hibernate.exception.ConstraintViolationException) cause, path);
+            }
+            message = cause.getMessage() != null ? cause.getMessage() : message;
+        }
+        
+        LOG.errorf(exception, "PersistenceException at path: %s - Message: %s", path, message);
+        
+        return Response
+            .status(Response.Status.BAD_REQUEST)
+            .entity(new ErrorResponse(
+                message,
+                "DATABASE_ERROR",
+                Response.Status.BAD_REQUEST.getStatusCode(),
+                path
+            ))
+            .type(MediaType.APPLICATION_JSON)
+            .build();
+    }
+    
+    private Response handleHibernateConstraintViolation(
+            org.hibernate.exception.ConstraintViolationException exception, String path) {
+        String constraintName = exception.getConstraintName();
+        String message = "Database constraint violation";
+        
+        if (constraintName != null) {
+            if (constraintName.toLowerCase().contains("unique")) {
+                message = "A record with this value already exists";
+            } else if (constraintName.toLowerCase().contains("foreign")) {
+                message = "Referenced record does not exist";
+            } else if (constraintName.toLowerCase().contains("not_null") || 
+                       constraintName.toLowerCase().contains("notnull")) {
+                message = "Required field is missing";
+            }
+        }
+        
+        LOG.errorf(exception, "Hibernate ConstraintViolationException at path: %s - Constraint: %s", 
+            path, constraintName);
+        
+        return Response
+            .status(Response.Status.BAD_REQUEST)
+            .entity(new ErrorResponse(
+                message,
+                "CONSTRAINT_VIOLATION",
+                Response.Status.BAD_REQUEST.getStatusCode(),
+                path
+            ))
+            .type(MediaType.APPLICATION_JSON)
+            .build();
     }
 }
 

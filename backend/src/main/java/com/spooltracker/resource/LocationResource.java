@@ -214,11 +214,11 @@ public class LocationResource {
 
     private void updateLocationFromDTO(Location location, LocationDTO dto) {
         location.name = Sanitizer.sanitize(dto.name());
-        location.description = Sanitizer.sanitizeWithLineBreaks(dto.description());
-        location.locationType = dto.locationType();
+        location.description = normalizeEmptyString(Sanitizer.sanitizeWithLineBreaks(dto.description()));
+        location.locationType = normalizeEmptyString(dto.locationType());
         
         // Auto-set capacity based on location type
-        Integer autoCapacity = getCapacityForType(dto.locationType());
+        Integer autoCapacity = getCapacityForType(location.locationType);
         if (autoCapacity != null) {
             // For AMS types, enforce 4 spots; for single-spot types, enforce 1 spot
             location.capacity = autoCapacity;
@@ -227,8 +227,8 @@ public class LocationResource {
             location.capacity = dto.capacity();
         }
         
-        location.icon = dto.icon();
-        location.color = dto.color();
+        location.icon = normalizeEmptyString(dto.icon());
+        location.color = normalizeEmptyString(dto.color());
         location.sortOrder = dto.sortOrder() != null ? dto.sortOrder() : 0;
         location.isActive = dto.isActive() != null ? dto.isActive() : true;
         
@@ -241,6 +241,14 @@ public class LocationResource {
         } else {
             location.parent = null;
         }
+    }
+    
+    /**
+     * Converts empty strings to null to ensure consistent database storage.
+     * This handles cases where the frontend sends empty strings instead of null/undefined.
+     */
+    private String normalizeEmptyString(String value) {
+        return (value == null || value.trim().isEmpty()) ? null : value;
     }
     
     /**
