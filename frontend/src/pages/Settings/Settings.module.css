@@ -135,6 +135,40 @@
   font-size: 0.875rem;
 }
 
+/* Seed Data Styles */
+.seedDescription {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.seedStatus {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+}
+
+.seedStatusItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.seedCheck {
+  color: var(--color-accent-primary);
+}
+
+.seedMissing {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

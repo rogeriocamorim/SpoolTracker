@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Save, RefreshCw, Database, Palette, Bell } from 'lucide-react';
+import { Save, Database, Palette, Bell, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button, Card, CardHeader, CardTitle, CardContent, Input } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { showSuccessToast, showErrorToast } from '../../api/client';
-import { settingsApi } from '../../api';
+import { settingsApi, type SeedStatus } from '../../api';
 import { logger } from '../../utils/logger';
 import styles from './Settings.module.css';
 
@@ -13,8 +13,10 @@ export function Settings() {
   const [defaultCurrency, setDefaultCurrency] = useState('USD');
   const [lowStockThreshold, setLowStockThreshold] = useState('20');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedStatus, setSeedStatus] = useState<SeedStatus | null>(null);
 
-  // Load settings from API on mount
+  // Load settings and seed status on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -27,7 +29,18 @@ export function Settings() {
         showErrorToast('Failed to load settings. Using defaults.');
       }
     };
+    
+    const loadSeedStatus = async () => {
+      try {
+        const status = await settingsApi.getSeedStatus();
+        setSeedStatus(status);
+      } catch (error) {
+        logger.error('Failed to load seed status', error instanceof Error ? error : new Error(String(error)), { component: 'Settings' });
+      }
+    };
+    
     loadSettings();
+    loadSeedStatus();
   }, []);
 
   const handleSave = async () => {
@@ -138,39 +151,81 @@ export function Settings() {
         <Card>
           <CardHeader>
             <CardTitle>
-              <RefreshCw size={18} style={{ marginRight: 8 }} />
-              Data Management
+              <Download size={18} style={{ marginRight: 8 }} />
+              Seed Default Data
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className={styles.settingsGroup}>
-              <div className={styles.dataAction}>
-                <div>
-                  <h4>Export Data</h4>
-                  <p>Download all your spool data as JSON</p>
+              <p className={styles.seedDescription}>
+                Pre-fill the database with Bambu Lab filament types and colors.
+                This will only add data that doesn't already exist.
+              </p>
+              
+              {seedStatus && (
+                <div className={styles.seedStatus}>
+                  <div className={styles.seedStatusItem}>
+                    {seedStatus.manufacturersSeeded ? (
+                      <CheckCircle size={16} className={styles.seedCheck} />
+                    ) : (
+                      <AlertCircle size={16} className={styles.seedMissing} />
+                    )}
+                    <span>Manufacturers: {seedStatus.manufacturerCount}</span>
+                  </div>
+                  <div className={styles.seedStatusItem}>
+                    {seedStatus.materialsSeeded ? (
+                      <CheckCircle size={16} className={styles.seedCheck} />
+                    ) : (
+                      <AlertCircle size={16} className={styles.seedMissing} />
+                    )}
+                    <span>Materials: {seedStatus.materialCount}</span>
+                  </div>
+                  <div className={styles.seedStatusItem}>
+                    {seedStatus.filamentTypesSeeded ? (
+                      <CheckCircle size={16} className={styles.seedCheck} />
+                    ) : (
+                      <AlertCircle size={16} className={styles.seedMissing} />
+                    )}
+                    <span>Filament Types: {seedStatus.filamentTypeCount}</span>
+                  </div>
+                  <div className={styles.seedStatusItem}>
+                    {seedStatus.colorsSeeded ? (
+                      <CheckCircle size={16} className={styles.seedCheck} />
+                    ) : (
+                      <AlertCircle size={16} className={styles.seedMissing} />
+                    )}
+                    <span>Colors: {seedStatus.colorCount}</span>
+                  </div>
                 </div>
-                <Button variant="secondary" size="sm">
-                  Export
-                </Button>
-              </div>
-              <div className={styles.dataAction}>
-                <div>
-                  <h4>Import Data</h4>
-                  <p>Import spool data from a JSON file</p>
-                </div>
-                <Button variant="secondary" size="sm">
-                  Import
-                </Button>
-              </div>
-              <div className={styles.dataAction}>
-                <div>
-                  <h4>Reset Sample Data</h4>
-                  <p>Reload default Bambu Lab filament data</p>
-                </div>
-                <Button variant="secondary" size="sm">
-                  Reset
-                </Button>
-              </div>
+              )}
+              
+              <Button 
+                onClick={async () => {
+                  setIsSeeding(true);
+                  try {
+                    const result = await settingsApi.seedData();
+                    const status = await settingsApi.getSeedStatus();
+                    setSeedStatus(status);
+                    
+                    if (result.manufacturersSeeded || result.materialsSeeded || 
+                        result.filamentTypesSeeded || result.colorsSeeded) {
+                      showSuccessToast('Default data seeded successfully!');
+                    } else {
+                      showSuccessToast('All default data already exists.');
+                    }
+                  } catch (error) {
+                    logger.error('Failed to seed data', error instanceof Error ? error : new Error(String(error)), { component: 'Settings' });
+                    showErrorToast('Failed to seed data. Please try again.');
+                  } finally {
+                    setIsSeeding(false);
+                  }
+                }}
+                isLoading={isSeeding}
+                variant="secondary"
+              >
+                <Database size={18} />
+                Seed Bambu Lab Data
+              </Button>
             </div>
           </CardContent>
         </Card>
