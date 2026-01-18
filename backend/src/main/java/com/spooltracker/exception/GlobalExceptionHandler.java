@@ -184,14 +184,22 @@ public class GlobalExceptionHandler implements ExceptionMapper<Exception> {
         String message = "Database constraint violation";
         
         if (constraintName != null) {
-            if (constraintName.toLowerCase().contains("unique")) {
+            String lowerConstraint = constraintName.toLowerCase();
+            if (lowerConstraint.contains("unique") || lowerConstraint.contains("duplicate")) {
                 message = "A record with this value already exists";
-            } else if (constraintName.toLowerCase().contains("foreign")) {
+            } else if (lowerConstraint.contains("foreign")) {
                 message = "Referenced record does not exist";
-            } else if (constraintName.toLowerCase().contains("not_null") || 
-                       constraintName.toLowerCase().contains("notnull")) {
+            } else if (lowerConstraint.contains("not_null") || lowerConstraint.contains("notnull")) {
                 message = "Required field is missing";
+            } else if (lowerConstraint.contains("primary")) {
+                message = "A record with this ID already exists";
             }
+        }
+        
+        // Also check the exception message for MariaDB/MySQL specific error patterns
+        String exMsg = exception.getMessage() != null ? exception.getMessage().toLowerCase() : "";
+        if (exMsg.contains("duplicate entry") || exMsg.contains("duplicate key")) {
+            message = "A record with this value already exists";
         }
         
         LOG.errorf(exception, "Hibernate ConstraintViolationException at path: %s - Constraint: %s", 

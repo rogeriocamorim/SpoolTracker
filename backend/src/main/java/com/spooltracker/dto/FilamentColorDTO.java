@@ -2,7 +2,6 @@ package com.spooltracker.dto;
 
 import com.spooltracker.entity.FilamentColor;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 public record FilamentColorDTO(
@@ -13,8 +12,7 @@ public record FilamentColorDTO(
     @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Hex code must be in format #RRGGBB")
     String hexCode,
     String productCode,
-    @NotNull(message = "Filament type ID is required")
-    Long filamentTypeId,
+    Long filamentTypeId,  // Optional in request body - provided via URL path when adding colors
     String filamentTypeName
 ) {
     public static FilamentColorDTO from(FilamentColor entity) {

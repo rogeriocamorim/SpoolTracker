@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { Camera, X, AlertCircle, RefreshCw, Eye, Printer, Package, MapPin } from 'lucide-react';
+import { Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../ui';
 import { logger } from '../../utils/logger';
-import { spoolsApi, locationsApi } from '../../api';
-import type { Spool, Location } from '../../types';
 import styles from './QRScanner.module.css';
 
 interface QRScannerProps {
@@ -12,23 +10,9 @@ interface QRScannerProps {
   onClose: () => void;
 }
 
-type ScanResult = {
-  type: 'spool';
-  uid: string;
-  url: string;
-  data?: Spool;
-} | {
-  type: 'location';
-  id: number;
-  url: string;
-  data?: Location;
-} | null;
-
 export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<boolean>(false);
-  const [scanResult, setScanResult] = useState<ScanResult>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const scannerKey = useRef(0);
   const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const constraintAttempt = useRef(0);
@@ -39,39 +23,25 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 
   const errorTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const processedRef = useRef(false);
+
   const handleScan = async (detectedCodes: DetectedCode[]) => {
-    if (detectedCodes && detectedCodes.length > 0 && !scanResult) {
+    if (detectedCodes && detectedCodes.length > 0 && !processedRef.current) {
       const scannedUrl = detectedCodes[0].rawValue;
       
-      // Check if it's a spool URL
+      // Check if it's a spool URL - navigate directly to detail page
       const spoolMatch = scannedUrl.match(/\/spools\/([^/]+)$/);
       if (spoolMatch) {
-        const uid = spoolMatch[1];
-        setIsLoading(true);
-        try {
-          const spool = await spoolsApi.getByUid(uid);
-          setScanResult({ type: 'spool', uid, url: scannedUrl, data: spool });
-        } catch (err) {
-          // Still show result even if we can't fetch details
-          setScanResult({ type: 'spool', uid, url: scannedUrl });
-        }
-        setIsLoading(false);
+        processedRef.current = true;
+        onScan(scannedUrl);
         return;
       }
       
-      // Check if it's a location URL
+      // Check if it's a location URL - navigate directly to detail page
       const locationMatch = scannedUrl.match(/\/locations\/(\d+)$/);
       if (locationMatch) {
-        const id = Number(locationMatch[1]);
-        setIsLoading(true);
-        try {
-          const location = await locationsApi.getById(id);
-          setScanResult({ type: 'location', id, url: scannedUrl, data: location });
-        } catch (err) {
-          // Still show result even if we can't fetch details
-          setScanResult({ type: 'location', id, url: scannedUrl });
-        }
-        setIsLoading(false);
+        processedRef.current = true;
+        onScan(scannedUrl);
         return;
       }
       
@@ -138,139 +108,6 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
     scannerKey.current += 1;
   };
 
-  const handleScanAgain = () => {
-    setScanResult(null);
-    setError(null);
-    scannerKey.current += 1;
-  };
-
-  const handleViewDetails = () => {
-    if (scanResult) {
-      onScan(scanResult.url);
-    }
-  };
-
-  const handleOpenInLabelife = async () => {
-    if (!scanResult || scanResult.type !== 'spool' || !scanResult.data) {
-      return;
-    }
-
-    const spool = scanResult.data;
-    
-    try {
-      // Import labelife utilities dynamically
-      const { generateAmlFile, downloadAmlFile } = await import('../../utils/labelife');
-      
-      // We need to generate the label image - create a temporary canvas
-      const canvas = document.createElement('canvas');
-      const LABEL_WIDTH = 151;
-      const LABEL_HEIGHT = 113;
-      const SCALE = 5;
-      const QR_CODE_SIZE = 70;
-      
-      canvas.width = LABEL_WIDTH * SCALE;
-      canvas.height = LABEL_HEIGHT * SCALE;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Could not get canvas context');
-      
-      ctx.scale(SCALE, SCALE);
-      
-      // Draw the label (simplified version)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, LABEL_WIDTH, LABEL_HEIGHT);
-      
-      // Border
-      ctx.strokeStyle = '#cccccc';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(0.5, 0.5, LABEL_WIDTH - 1, LABEL_HEIGHT - 1);
-      
-      // Header
-      const headerHeight = 18;
-      const headerPadding = 4;
-      ctx.fillStyle = '#000000';
-      ctx.beginPath();
-      ctx.roundRect(headerPadding, headerPadding, LABEL_WIDTH - headerPadding * 2, headerHeight, 3);
-      ctx.fill();
-      
-      // Brand icon
-      ctx.fillStyle = '#ffffff';
-      const iconX = headerPadding + 6;
-      const iconY = headerPadding + 4;
-      ctx.fillRect(iconX, iconY, 3, 10);
-      ctx.fillRect(iconX + 5, iconY, 3, 10);
-      
-      // Manufacturer name
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px Arial, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(spool.manufacturerName || 'Unknown', iconX + 14, headerPadding + headerHeight / 2);
-      
-      // Generate QR code using qrcode library
-      const QRCode = (await import('qrcode')).default;
-      const qrDataUrl = await QRCode.toDataURL(`/spools/${spool.uid}`, {
-        width: QR_CODE_SIZE * SCALE,
-        margin: 0,
-        errorCorrectionLevel: 'L',
-      });
-      
-      // Draw QR code
-      const qrImage = new Image();
-      await new Promise<void>((resolve) => {
-        qrImage.onload = () => resolve();
-        qrImage.src = qrDataUrl;
-      });
-      
-      const contentY = headerPadding + headerHeight + 4;
-      ctx.drawImage(qrImage, headerPadding + 2, contentY, QR_CODE_SIZE, QR_CODE_SIZE);
-      
-      // Info section
-      const infoX = headerPadding + 2 + QR_CODE_SIZE + 6;
-      let infoY = contentY + 2;
-      
-      // Filament type badge
-      ctx.fillStyle = '#000000';
-      const typeBadgeHeight = 14;
-      ctx.font = 'bold 9px Arial, sans-serif';
-      const typeTextWidth = ctx.measureText(spool.filamentTypeName || '').width;
-      ctx.beginPath();
-      ctx.roundRect(infoX, infoY, Math.min(typeTextWidth + 8, LABEL_WIDTH - infoX - headerPadding), typeBadgeHeight, 2);
-      ctx.fill();
-      
-      ctx.fillStyle = '#ffffff';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(spool.filamentTypeName || '', infoX + 4, infoY + typeBadgeHeight / 2);
-      
-      // Color name
-      infoY += typeBadgeHeight + 4;
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 11px Arial, sans-serif';
-      ctx.textBaseline = 'top';
-      const colorText = spool.colorProductCode 
-        ? `${spool.colorName} (${spool.colorProductCode})`
-        : spool.colorName || '';
-      ctx.fillText(colorText, infoX, infoY);
-      
-      // Hex code
-      infoY += 16;
-      ctx.fillStyle = '#333333';
-      ctx.font = 'bold 10px Courier New, monospace';
-      ctx.fillText((spool.colorHexCode || '#000000').toUpperCase(), infoX, infoY);
-      
-      // Get base64 from canvas
-      const imageBase64 = canvas.toDataURL('image/png').split(',')[1];
-      
-      // Generate and download .aml file
-      const labelName = `spool-${(spool.manufacturerName || 'unknown').replace(/\s+/g, '-').toLowerCase()}-${(spool.filamentTypeName || '').replace(/\s+/g, '-')}-${spool.colorName || ''}-${spool.colorProductCode || spool.uid.slice(0, 8)}.aml`;
-      const amlContent = generateAmlFile(labelName, 40, 30, imageBase64);
-      downloadAmlFile(amlContent, labelName);
-    } catch (err) {
-      logger.error('Failed to generate Labelife file', err instanceof Error ? err : new Error(String(err)), { component: 'QRScanner' });
-      setError('Failed to generate label file');
-    }
-  };
-
   useEffect(() => {
     return () => {
       if (errorTimeoutRef.current) {
@@ -281,88 +118,6 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       }
     };
   }, []);
-
-  // Render scan result view
-  if (scanResult) {
-    const isSpool = scanResult.type === 'spool';
-    const data = scanResult.data;
-    
-    return (
-      <div className={styles.overlay}>
-        <div className={styles.container}>
-          <div className={styles.header}>
-            <div className={styles.title}>
-              {isSpool ? <Package size={20} /> : <MapPin size={20} />}
-              <h3>{isSpool ? 'Spool Found' : 'Location Found'}</h3>
-            </div>
-            <button className={styles.closeButton} onClick={onClose}>
-              <X size={24} />
-            </button>
-          </div>
-
-          <div className={styles.scanResult}>
-            <div className={styles.resultIcon}>
-              {isSpool ? <Package size={48} /> : <MapPin size={48} />}
-            </div>
-            
-            {isSpool && data && 'colorName' in data ? (
-              <div className={styles.resultDetails}>
-                <div 
-                  className={styles.colorSwatch} 
-                  style={{ backgroundColor: data.colorHexCode || '#ccc' }}
-                />
-                <h4>{data.colorName}</h4>
-                <p className={styles.resultSubtitle}>
-                  {data.manufacturerName} • {data.filamentTypeName}
-                </p>
-                {data.colorProductCode && (
-                  <p className={styles.resultCode}>Code: {data.colorProductCode}</p>
-                )}
-              </div>
-            ) : !isSpool && data && 'name' in data ? (
-              <div className={styles.resultDetails}>
-                <h4>{data.name}</h4>
-                {data.locationType && (
-                  <p className={styles.resultSubtitle}>{data.locationType}</p>
-                )}
-                {data.fullPath && (
-                  <p className={styles.resultCode}>{data.fullPath}</p>
-                )}
-              </div>
-            ) : (
-              <div className={styles.resultDetails}>
-                <h4>{isSpool ? `Spool: ${scanResult.uid}` : `Location #${scanResult.id}`}</h4>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.resultActions}>
-            <Button onClick={handleViewDetails} variant="primary">
-              <Eye size={18} />
-              View Details
-            </Button>
-            
-            {isSpool && data && 'colorName' in data && (
-              <Button onClick={handleOpenInLabelife} variant="secondary">
-                <Printer size={18} />
-                Open in Labelife
-              </Button>
-            )}
-          </div>
-
-          <div className={styles.actions}>
-            <Button variant="secondary" onClick={handleScanAgain}>
-              <RefreshCw size={18} />
-              Scan Another
-            </Button>
-            <Button variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={styles.overlay}>
@@ -378,54 +133,47 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         </div>
 
         <div className={styles.scannerWrapper}>
-          {isLoading ? (
-            <div className={styles.loadingOverlay}>
-              <div className={styles.spinner} />
-              <p>Loading...</p>
-            </div>
-          ) : (
-            <Scanner
-              key={`${scannerKey.current}-${constraintAttempt.current}`}
-              onScan={handleScan}
-              onError={handleError}
-              constraints={
-                constraintAttempt.current === 0
-                  ? {
-                      facingMode: { ideal: 'environment' },
-                      width: { ideal: 1920 },
-                      height: { ideal: 1080 },
-                      // @ts-ignore - advanced constraints for focus
-                      focusMode: { ideal: 'continuous' },
-                      // @ts-ignore - try to set close focus distance (in meters, 0.1 = 10cm)
-                      focusDistance: { ideal: 0.1 }
-                    }
-                  : constraintAttempt.current === 1
-                  ? {
-                      facingMode: 'user',
-                      width: { ideal: 1920 },
-                      height: { ideal: 1080 },
-                      // @ts-ignore
-                      focusMode: { ideal: 'continuous' }
-                    }
-                  : {
-                      // Last resort: high resolution, any camera
-                      width: { ideal: 1920 },
-                      height: { ideal: 1080 }
-                    }
+          <Scanner
+            key={`${scannerKey.current}-${constraintAttempt.current}`}
+            onScan={handleScan}
+            onError={handleError}
+            constraints={
+              constraintAttempt.current === 0
+                ? {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    // @ts-ignore - advanced constraints for focus
+                    focusMode: { ideal: 'continuous' },
+                    // @ts-ignore - try to set close focus distance (in meters, 0.1 = 10cm)
+                    focusDistance: { ideal: 0.1 }
+                  }
+                : constraintAttempt.current === 1
+                ? {
+                    facingMode: 'user',
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    // @ts-ignore
+                    focusMode: { ideal: 'continuous' }
+                  }
+                : {
+                    // Last resort: high resolution, any camera
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                  }
+            }
+            styles={{
+              container: {
+                width: '100%',
+                height: '100%',
+              },
+              video: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
               }
-              styles={{
-                container: {
-                  width: '100%',
-                  height: '100%',
-                },
-                video: {
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }
-              }}
-            />
-          )}
+            }}
+          />
           {cameraError && (
             <div className={styles.errorOverlay}>
               <div className={styles.errorState}>
@@ -462,7 +210,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           </div>
         )}
 
-        {!cameraError && !isLoading && (
+        {!cameraError && (
           <p className={styles.hint}>
             Point your camera at a spool or location QR code
           </p>

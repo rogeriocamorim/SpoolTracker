@@ -1,17 +1,24 @@
+# syntax=docker/dockerfile:1.4
+
 # Stage 1: Build
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# First, copy only pom.xml and download dependencies (cached layer)
+# Copy pom.xml first for dependency resolution
 COPY pom.xml .
-# Use resolve instead of go-offline for better Quarkus compatibility
-RUN mvn dependency:resolve dependency:resolve-plugins -B
 
-# Now copy source code and build (this layer changes with code)
+# Download dependencies with cache mount
+# id=maven-cache ensures the cache persists between builds
+# sharing=locked prevents race conditions
+RUN --mount=type=cache,id=maven-cache,target=/root/.m2/repository,sharing=locked \
+    mvn dependency:resolve dependency:resolve-plugins -B
+
+# Copy source code
 COPY src ./src
-# Don't use offline mode - Quarkus may need additional artifacts during code generation
-# Use quarkus.package.jar.type instead of deprecated quarkus.package.type
-RUN mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar
+
+# Build with cache mount - dependencies won't be re-downloaded
+RUN --mount=type=cache,id=maven-cache,target=/root/.m2/repository,sharing=locked \
+    mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar
 
 # Stage 2: Run
 FROM eclipse-temurin:21-jre-alpine

@@ -155,3 +155,4 @@ INSERT INTO location (id, name, description, location_type, parent_id, capacity,
 
 -- Printer
 INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (11, 'Printer', 'Currently loaded in printer (external spool)', 'PRINTER', NULL, 1, '#9D2235', 4, true);
+

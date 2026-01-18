@@ -56,7 +56,7 @@ public class FilamentTypeResource {
         }
         
         return types.stream()
-            .map(FilamentTypeDTO::fromWithoutColors)
+            .map(FilamentTypeDTO::from)
             .toList();
     }
 

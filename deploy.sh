@@ -10,6 +10,10 @@ set -e  # Exit on error
 DEPLOY_START_TIME=$(date +%s)
 STEP_START_TIME=$DEPLOY_START_TIME
 
+# Arrays to store step timings for summary
+declare -a STEP_NAMES=()
+declare -a STEP_DURATIONS=()
+
 format_duration() {
     local seconds=$1
     if [ $seconds -lt 60 ]; then
@@ -26,15 +30,35 @@ start_timer() {
 }
 
 show_step_time() {
+    local step_name="${1:-Step}"
     local step_end=$(date +%s)
     local duration=$((step_end - STEP_START_TIME))
-    echo "   ⏱️  Step completed in $(format_duration $duration)"
+    
+    # Store for summary
+    STEP_NAMES+=("$step_name")
+    STEP_DURATIONS+=($duration)
+    
+    echo "   ⏱️  $step_name completed in $(format_duration $duration)"
 }
 
 show_total_time() {
     local total_end=$(date +%s)
     local duration=$((total_end - DEPLOY_START_TIME))
-    echo "⏱️  Total deployment time: $(format_duration $duration)"
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "               DEPLOYMENT SUMMARY"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    
+    # Show each step's timing
+    for i in "${!STEP_NAMES[@]}"; do
+        printf "   %-30s %10s\n" "${STEP_NAMES[$i]}" "$(format_duration ${STEP_DURATIONS[$i]})"
+    done
+    
+    echo "   ───────────────────────────────────────────"
+    printf "   %-30s %10s\n" "TOTAL TIME" "$(format_duration $duration)"
+    echo ""
+    echo "═══════════════════════════════════════════════"
 }
 
 # Configuration - Load from .env.deploy if it exists
@@ -314,14 +338,14 @@ fi
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ Deployment package created: spooltracker-deploy.tar.gz"
-show_step_time
+show_step_time "Package creation"
 echo ""
 
 echo "🔄 Step 2: Uploading to remote server..."
 start_timer
 eval "$SCP_CMD spooltracker-deploy.tar.gz $REMOTE_USER@$REMOTE_HOST:/tmp/"
 echo "✅ Upload complete"
-show_step_time
+show_step_time "Upload to server"
 echo ""
 
 echo "🚀 Step 3: Deploying on remote server..."
@@ -488,7 +512,7 @@ eval "$SSH_CMD $REMOTE_USER@$REMOTE_HOST" << 'ENDSSH'
     docker-compose logs --tail=20
 ENDSSH
 
-show_step_time
+show_step_time "Remote deployment"
 
 # Save current commit as last deploy marker
 git rev-parse HEAD > .last-deploy 2>/dev/null || true
