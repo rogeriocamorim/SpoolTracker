@@ -113,54 +113,39 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     let infoY = contentY + 2;
 
     if (!showQrCode) {
-      // === No QR Code layout: centered badge, bigger color name, separate lines ===
+      // === No QR Code layout: centered text, bigger color name, separate lines ===
       const fullWidth = LABEL_WIDTH - headerPadding * 2;
       const centerX = LABEL_WIDTH / 2;
 
-      // Filament type badge - centered
-      ctx.fillStyle = '#000000';
-      const typeBadgeHeight = 16;
+      // Filament type - centered, plain text (no badge background)
       const typeText = filamentTypeName;
+      ctx.fillStyle = '#333333';
       ctx.font = 'bold 10px Arial, sans-serif';
-      const typeTextWidth = ctx.measureText(typeText).width;
-      const badgeWidth = typeTextWidth + 10;
-      const badgeX = centerX - badgeWidth / 2;
-      roundRect(ctx, badgeX, infoY, badgeWidth, typeBadgeHeight, 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(typeText, centerX, infoY + typeBadgeHeight / 2);
+      ctx.fillText(typeText, centerX, infoY + 8);
 
-      // Color name - bigger, centered, up to 2 lines
-      infoY += typeBadgeHeight + 6;
+      // Color name - large, centered, one word per line if 2 words
+      infoY += 22;
       ctx.fillStyle = '#000000';
-      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.font = 'bold 18px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
       const maxLineWidth = fullWidth - 4;
       const nameLines = wrapText(ctx, colorName, maxLineWidth);
       nameLines.forEach((line, index) => {
-        ctx.fillText(line, centerX, infoY + index * 16);
+        ctx.fillText(line, centerX, infoY + index * 20);
       });
 
       // Product code - below color name
-      infoY += nameLines.length * 16 + 4;
+      infoY += nameLines.length * 20 + 4;
       if (productCode) {
-        ctx.fillStyle = '#333333';
+        ctx.fillStyle = '#555555';
         ctx.font = 'bold 11px Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(productCode, centerX, infoY);
-        infoY += 14;
       }
-
-      // Hex code - below product code
-      ctx.fillStyle = '#555555';
-      ctx.font = 'bold 10px Courier New, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(colorHexCode.toUpperCase(), centerX, infoY);
     } else {
       // === With QR Code layout: compact text on the right ===
 
