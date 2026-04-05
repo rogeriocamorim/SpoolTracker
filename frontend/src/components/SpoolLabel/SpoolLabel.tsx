@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Download, Image as ImageIcon } from 'lucide-react';
 import type { Spool } from '../../types';
@@ -20,6 +20,7 @@ const QR_CODE_SIZE = 70; // Size of the QR code in pixels
 export function SpoolLabel({ spool }: SpoolLabelProps) {
   const mainCanvasRef = useRef<HTMLCanvasElement>(null);
   const qrCodeCanvasRef = useRef<HTMLDivElement>(null);
+  const [showQrCode, setShowQrCode] = useState(true);
   
   // Safely get spool properties with fallbacks
   const spoolUid = spool?.uid || '';
@@ -98,14 +99,16 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     const qrX = headerPadding + 2;
     const qrY = contentY;
 
-    // Draw QR code from the hidden QRCodeCanvas
-    const qrCanvasElement = qrCodeCanvasRef.current?.querySelector('canvas');
-    if (qrCanvasElement) {
-      ctx.drawImage(qrCanvasElement, qrX, qrY, qrSize, qrSize);
+    // Draw QR code from the hidden QRCodeCanvas (only when enabled)
+    if (showQrCode) {
+      const qrCanvasElement = qrCodeCanvasRef.current?.querySelector('canvas');
+      if (qrCanvasElement) {
+        ctx.drawImage(qrCanvasElement, qrX, qrY, qrSize, qrSize);
+      }
     }
 
-    // Info section (right of QR code)
-    const infoX = qrX + qrSize + 6;
+    // Info section - positioned right of QR code when shown, or full width when hidden
+    const infoX = showQrCode ? qrX + qrSize + 6 : headerPadding + 4;
     const infoWidth = LABEL_WIDTH - infoX - headerPadding;
     let infoY = contentY + 2;
 
@@ -150,7 +153,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       ctx.font = 'bold 11px Arial, sans-serif';
       ctx.fillText(`#${colorNumber}`, infoX, infoY);
     }
-  }, [isDataReady, manufacturerName, filamentTypeName, colorWithCode, colorHexCode, colorNumber]);
+  }, [isDataReady, showQrCode, manufacturerName, filamentTypeName, colorWithCode, colorHexCode, colorNumber]);
 
   useEffect(() => {
     // Wait for QR code to render, then render label
@@ -227,8 +230,17 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     <div className={styles.container}>
       <div className={styles.preview}>
         <div className={styles.previewHeader}>
-          <h4 className={styles.previewTitle}>Spool Label Preview (40mm × 30mm)</h4>
+          <h4 className={styles.previewTitle}>Spool Label Preview (40mm x 30mm)</h4>
         </div>
+
+        <label className={styles.toggleRow}>
+          <input
+            type="checkbox"
+            checked={showQrCode}
+            onChange={(e) => setShowQrCode(e.target.checked)}
+          />
+          <span>Include QR Code</span>
+        </label>
 
         <div className={styles.labelWrapper}>
           <canvas
@@ -240,7 +252,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
             }}
           />
           {/* Hidden QRCodeCanvas to render QR code for drawing onto main canvas */}
-          {spoolPath && (
+          {showQrCode && spoolPath && (
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
               <QRCodeCanvas
                 value={spoolPath}
@@ -253,10 +265,12 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
         </div>
       </div>
 
-      <div className={styles.urlInfo}>
-        <span className={styles.urlLabel}>QR links to:</span>
-        <code className={styles.url}>{spoolUrl}</code>
-      </div>
+      {showQrCode && (
+        <div className={styles.urlInfo}>
+          <span className={styles.urlLabel}>QR links to:</span>
+          <code className={styles.url}>{spoolUrl}</code>
+        </div>
+      )}
 
       <div className={styles.actions}>
         <Button variant="secondary" onClick={handleDownloadImage}>
