@@ -112,48 +112,101 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     const infoWidth = LABEL_WIDTH - infoX - headerPadding;
     let infoY = contentY + 2;
 
-    // Filament type badge (e.g., "PETG HF")
-    ctx.fillStyle = '#000000';
-    const typeBadgeHeight = 14;
-    const typeText = filamentTypeName;
-    ctx.font = 'bold 9px Arial, sans-serif';
-    const typeTextWidth = ctx.measureText(typeText).width;
-    roundRect(ctx, infoX, infoY, Math.min(typeTextWidth + 8, infoWidth), typeBadgeHeight, 2);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(typeText, infoX + 4, infoY + typeBadgeHeight / 2);
+    if (!showQrCode) {
+      // === No QR Code layout: centered badge, bigger color name, separate lines ===
+      const fullWidth = LABEL_WIDTH - headerPadding * 2;
+      const centerX = LABEL_WIDTH / 2;
 
-    // Color name with product code (e.g., "Black (33102)")
-    infoY += typeBadgeHeight + 4;
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 11px Arial, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    
-    // Handle long text - wrap if needed
-    const maxLineWidth = infoWidth - 2;
-    const lines = wrapText(ctx, colorWithCode, maxLineWidth);
-    lines.forEach((line, index) => {
-      ctx.fillText(line, infoX, infoY + index * 12);
-    });
+      // Filament type badge - centered
+      ctx.fillStyle = '#000000';
+      const typeBadgeHeight = 16;
+      const typeText = filamentTypeName;
+      ctx.font = 'bold 10px Arial, sans-serif';
+      const typeTextWidth = ctx.measureText(typeText).width;
+      const badgeWidth = typeTextWidth + 10;
+      const badgeX = centerX - badgeWidth / 2;
+      roundRect(ctx, badgeX, infoY, badgeWidth, typeBadgeHeight, 2);
+      ctx.fill();
 
-    // Hex code (e.g., "#000000")
-    infoY += lines.length * 12 + 6;
-    ctx.fillStyle = '#333333';
-    ctx.font = 'bold 10px Courier New, monospace';
-    ctx.fillText(colorHexCode.toUpperCase(), infoX, infoY);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(typeText, centerX, infoY + typeBadgeHeight / 2);
 
-    // Color number (if available) - same size as color name
-    if (colorNumber) {
-      infoY += 14;
+      // Color name - bigger, centered, up to 2 lines
+      infoY += typeBadgeHeight + 6;
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      const maxLineWidth = fullWidth - 4;
+      const nameLines = wrapText(ctx, colorName, maxLineWidth);
+      nameLines.forEach((line, index) => {
+        ctx.fillText(line, centerX, infoY + index * 16);
+      });
+
+      // Product code - below color name
+      infoY += nameLines.length * 16 + 4;
+      if (productCode) {
+        ctx.fillStyle = '#333333';
+        ctx.font = 'bold 11px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(productCode, centerX, infoY);
+        infoY += 14;
+      }
+
+      // Hex code - below product code
+      ctx.fillStyle = '#555555';
+      ctx.font = 'bold 10px Courier New, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(colorHexCode.toUpperCase(), centerX, infoY);
+    } else {
+      // === With QR Code layout: compact text on the right ===
+
+      // Filament type badge (e.g., "PETG HF")
+      ctx.fillStyle = '#000000';
+      const typeBadgeHeight = 14;
+      const typeText = filamentTypeName;
+      ctx.font = 'bold 9px Arial, sans-serif';
+      const typeTextWidth = ctx.measureText(typeText).width;
+      roundRect(ctx, infoX, infoY, Math.min(typeTextWidth + 8, infoWidth), typeBadgeHeight, 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(typeText, infoX + 4, infoY + typeBadgeHeight / 2);
+
+      // Color name with product code (e.g., "Black (33102)")
+      infoY += typeBadgeHeight + 4;
       ctx.fillStyle = '#000000';
       ctx.font = 'bold 11px Arial, sans-serif';
-      ctx.fillText(`#${colorNumber}`, infoX, infoY);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      // Handle long text - wrap if needed
+      const maxLineWidth = infoWidth - 2;
+      const lines = wrapText(ctx, colorWithCode, maxLineWidth);
+      lines.forEach((line, index) => {
+        ctx.fillText(line, infoX, infoY + index * 12);
+      });
+
+      // Hex code (e.g., "#000000")
+      infoY += lines.length * 12 + 6;
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 10px Courier New, monospace';
+      ctx.fillText(colorHexCode.toUpperCase(), infoX, infoY);
+
+      // Color number (if available) - same size as color name
+      if (colorNumber) {
+        infoY += 14;
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 11px Arial, sans-serif';
+        ctx.fillText(`#${colorNumber}`, infoX, infoY);
+      }
     }
-  }, [isDataReady, showQrCode, manufacturerName, filamentTypeName, colorWithCode, colorHexCode, colorNumber]);
+  }, [isDataReady, showQrCode, manufacturerName, filamentTypeName, colorName, colorWithCode, productCode, colorHexCode, colorNumber]);
 
   useEffect(() => {
     // Wait for QR code to render, then render label
