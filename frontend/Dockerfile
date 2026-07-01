@@ -21,8 +21,13 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Create SSL directory (certificates will be mounted as volume)
-RUN mkdir -p /etc/nginx/ssl
+# Self-signed fallback cert so nginx can start even without a mounted
+# volume (docker-compose.yml mounts real certs at this path, overriding this)
+RUN apk add --no-cache openssl \
+    && mkdir -p /etc/nginx/ssl \
+    && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /etc/nginx/ssl/key.pem -out /etc/nginx/ssl/cert.pem \
+        -subj "/CN=spooltracker"
 
 EXPOSE 80 443
 
