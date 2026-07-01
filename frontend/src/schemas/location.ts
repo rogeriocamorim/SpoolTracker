@@ -10,7 +10,6 @@ export const createLocationSchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().max(50, 'Location type must be less than 50 characters').optional()
   ),
-  parentId: z.number().optional(),
   capacity: z.union([
     z.number().int().positive('Capacity must be a positive integer'),
     z.string().transform((val) => {

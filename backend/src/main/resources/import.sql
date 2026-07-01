@@ -1,9 +1,5 @@
 -- Manufacturers
 INSERT INTO manufacturer (id, name, description, website) VALUES (1, 'Bambu Lab', 'High-quality 3D printing filaments designed for Bambu Lab printers', 'https://bambulab.com');
-INSERT INTO manufacturer (id, name, description, website) VALUES (2, 'Polymaker', 'Premium 3D printing materials for professionals and enthusiasts', 'https://polymaker.com');
-INSERT INTO manufacturer (id, name, description, website) VALUES (3, 'Hatchbox', 'Reliable and affordable 3D printing filaments', 'https://hatchbox3d.com');
-INSERT INTO manufacturer (id, name, description, website) VALUES (4, 'eSUN', 'Wide variety of 3D printing materials', 'https://esun3d.com');
-INSERT INTO manufacturer (id, name, description, website) VALUES (5, 'Prusament', 'Precision-made filaments by Prusa Research', 'https://prusament.com');
 
 -- Materials
 INSERT INTO material (id, name, description, min_nozzle_temp, max_nozzle_temp, min_bed_temp, max_bed_temp, requires_enclosure, requires_dry_box) 
@@ -135,24 +131,3 @@ INSERT INTO filament_color (id, name, hex_code, product_code, filament_type_id) 
 INSERT INTO filament_color (id, name, hex_code, product_code, filament_type_id) VALUES (75, 'Translucent Orange', '#FF911A', '33205', 4);
 INSERT INTO filament_color (id, name, hex_code, product_code, filament_type_id) VALUES (76, 'Translucent Purple', '#D6ABFF', '33206', 4);
 INSERT INTO filament_color (id, name, hex_code, product_code, filament_type_id) VALUES (77, 'Translucent Pink', '#F9C1BD', '33207', 4);
-
--- Default Locations
--- AMS Units
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (1, 'AMS 1', 'Primary AMS Unit', 'AMS', NULL, 4, '#00AE42', 1, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (2, 'Slot 1', 'AMS 1 - Slot 1', 'AMS', 1, 1, '#00AE42', 1, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (3, 'Slot 2', 'AMS 1 - Slot 2', 'AMS', 1, 1, '#00AE42', 2, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (4, 'Slot 3', 'AMS 1 - Slot 3', 'AMS', 1, 1, '#00AE42', 3, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (5, 'Slot 4', 'AMS 1 - Slot 4', 'AMS', 1, 1, '#00AE42', 4, true);
-
--- Storage Rack
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (6, 'Storage Rack A', 'Main storage rack', 'RACK', NULL, NULL, '#0056B8', 2, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (7, 'Shelf 1', 'Top shelf', 'SHELF', 6, 10, '#0056B8', 1, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (8, 'Shelf 2', 'Middle shelf', 'SHELF', 6, 10, '#0056B8', 2, true);
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (9, 'Shelf 3', 'Bottom shelf', 'SHELF', 6, 10, '#0056B8', 3, true);
-
--- Dry Box Storage
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (10, 'Dry Box', 'Humidity controlled storage', 'STORAGE', NULL, 8, '#FF6A13', 3, true);
-
--- Printer
-INSERT INTO location (id, name, description, location_type, parent_id, capacity, color, sort_order, is_active) VALUES (11, 'Printer', 'Currently loaded in printer (external spool)', 'PRINTER', NULL, 1, '#9D2235', 4, true);
-

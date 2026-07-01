@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Image as ImageIcon } from 'lucide-react';
+import { Download, Image as ImageIcon, QrCode, Type } from 'lucide-react';
 import type { Spool } from '../../types';
 import { Button } from '../ui';
 import { generateAmlFile, downloadAmlFile } from '../../utils/labelife';
@@ -20,7 +20,7 @@ const QR_CODE_SIZE = 70; // Size of the QR code in pixels
 export function SpoolLabel({ spool }: SpoolLabelProps) {
   const mainCanvasRef = useRef<HTMLCanvasElement>(null);
   const qrCodeCanvasRef = useRef<HTMLDivElement>(null);
-  const [showQrCode, setShowQrCode] = useState(true);
+  const [showQR, setShowQR] = useState(true);
   
   // Safely get spool properties with fallbacks
   const spoolUid = spool?.uid || '';
@@ -95,59 +95,23 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
 
     // Content area starts after header
     const contentY = headerPadding + headerHeight + 4;
-    const qrSize = QR_CODE_SIZE;
-    const qrX = headerPadding + 2;
-    const qrY = contentY;
 
-    // Draw QR code from the hidden QRCodeCanvas (only when enabled)
-    if (showQrCode) {
+    if (showQR) {
+      // === LAYOUT WITH QR CODE ===
+      const qrSize = QR_CODE_SIZE;
+      const qrX = headerPadding + 2;
+      const qrY = contentY;
+
+      // Draw QR code from the hidden QRCodeCanvas
       const qrCanvasElement = qrCodeCanvasRef.current?.querySelector('canvas');
       if (qrCanvasElement) {
         ctx.drawImage(qrCanvasElement, qrX, qrY, qrSize, qrSize);
       }
-    }
 
-    // Info section - positioned right of QR code when shown, or full width when hidden
-    const infoX = showQrCode ? qrX + qrSize + 6 : headerPadding + 4;
-    const infoWidth = LABEL_WIDTH - infoX - headerPadding;
-    let infoY = contentY + 2;
-
-    if (!showQrCode) {
-      // === No QR Code layout: centered text, bigger color name, separate lines ===
-      const fullWidth = LABEL_WIDTH - headerPadding * 2;
-      const centerX = LABEL_WIDTH / 2;
-
-      // Filament type - centered, plain text (no badge background)
-      const typeText = filamentTypeName;
-      ctx.fillStyle = '#333333';
-      ctx.font = 'bold 10px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(typeText, centerX, infoY + 8);
-
-      // Color name - large, centered, one word per line if 2 words
-      infoY += 22;
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 18px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-
-      const maxLineWidth = fullWidth - 4;
-      const nameLines = wrapText(ctx, colorName, maxLineWidth);
-      nameLines.forEach((line, index) => {
-        ctx.fillText(line, centerX, infoY + index * 20);
-      });
-
-      // Product code - below color name
-      infoY += nameLines.length * 20 + 4;
-      if (productCode) {
-        ctx.fillStyle = '#555555';
-        ctx.font = 'bold 11px Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(productCode, centerX, infoY);
-      }
-    } else {
-      // === With QR Code layout: compact text on the right ===
+      // Info section (right of QR code)
+      const infoX = qrX + qrSize + 6;
+      const infoWidth = LABEL_WIDTH - infoX - headerPadding;
+      let infoY = contentY + 2;
 
       // Filament type badge (e.g., "PETG HF")
       ctx.fillStyle = '#000000';
@@ -157,7 +121,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       const typeTextWidth = ctx.measureText(typeText).width;
       roundRect(ctx, infoX, infoY, Math.min(typeTextWidth + 8, infoWidth), typeBadgeHeight, 2);
       ctx.fill();
-
+      
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -169,7 +133,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
       ctx.font = 'bold 11px Arial, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-
+      
       // Handle long text - wrap if needed
       const maxLineWidth = infoWidth - 2;
       const lines = wrapText(ctx, colorWithCode, maxLineWidth);
@@ -190,8 +154,69 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
         ctx.font = 'bold 11px Arial, sans-serif';
         ctx.fillText(`#${colorNumber}`, infoX, infoY);
       }
+    } else {
+      // === LAYOUT WITHOUT QR CODE (full width for info) ===
+      const infoX = headerPadding + 6;
+      const infoWidth = LABEL_WIDTH - infoX - headerPadding - 4;
+
+      // Filament type badge - larger since we have more space
+      ctx.fillStyle = '#000000';
+      const typeBadgeHeight = 16;
+      const typeText = filamentTypeName;
+      ctx.font = 'bold 11px Arial, sans-serif';
+      const typeTextWidth = ctx.measureText(typeText).width;
+      roundRect(ctx, infoX, contentY + 2, Math.min(typeTextWidth + 10, infoWidth), typeBadgeHeight, 3);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(typeText, infoX + 5, contentY + 2 + typeBadgeHeight / 2);
+
+      // Color name with product code - larger font
+      let infoY = contentY + 2 + typeBadgeHeight + 6;
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      
+      const maxLineWidth = infoWidth;
+      const lines = wrapText(ctx, colorWithCode, maxLineWidth);
+      lines.forEach((line, index) => {
+        ctx.fillText(line, infoX, infoY + index * 16);
+      });
+
+      // Hex code - below color name
+      infoY += lines.length * 16 + 6;
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 12px Courier New, monospace';
+      ctx.fillText(colorHexCode.toUpperCase(), infoX, infoY);
+
+      // Color number (if available)
+      if (colorNumber) {
+        infoY += 16;
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 14px Arial, sans-serif';
+        ctx.fillText(`#${colorNumber}`, infoX, infoY);
+      }
+
+      // Draw a small color swatch in the remaining space (bottom-right area)
+      const swatchSize = 20;
+      const swatchX = LABEL_WIDTH - headerPadding - swatchSize - 4;
+      const swatchY = LABEL_HEIGHT - headerPadding - swatchSize - 2;
+      
+      // Only draw swatch if there's enough room (not overlapping text)
+      if (swatchY > infoY + 4) {
+        ctx.fillStyle = colorHexCode;
+        roundRect(ctx, swatchX, swatchY, swatchSize, swatchSize, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 0.5;
+        roundRect(ctx, swatchX, swatchY, swatchSize, swatchSize, 3);
+        ctx.stroke();
+      }
     }
-  }, [isDataReady, showQrCode, manufacturerName, filamentTypeName, colorName, colorWithCode, productCode, colorHexCode, colorNumber]);
+  }, [isDataReady, showQR, manufacturerName, filamentTypeName, colorWithCode, colorHexCode, colorNumber]);
 
   useEffect(() => {
     // Wait for QR code to render, then render label
@@ -268,17 +293,28 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
     <div className={styles.container}>
       <div className={styles.preview}>
         <div className={styles.previewHeader}>
-          <h4 className={styles.previewTitle}>Spool Label Preview (40mm x 30mm)</h4>
+          <h4 className={styles.previewTitle}>Spool Label Preview (40mm × 30mm)</h4>
         </div>
 
-        <label className={styles.toggleRow}>
-          <input
-            type="checkbox"
-            checked={showQrCode}
-            onChange={(e) => setShowQrCode(e.target.checked)}
-          />
-          <span>Include QR Code</span>
-        </label>
+        {/* Toggle between QR code and no QR code */}
+        <div className={styles.labelToggle}>
+          <button
+            className={`${styles.toggleButton} ${showQR ? styles.toggleButtonActive : ''}`}
+            onClick={() => setShowQR(true)}
+            type="button"
+          >
+            <QrCode size={14} />
+            With QR Code
+          </button>
+          <button
+            className={`${styles.toggleButton} ${!showQR ? styles.toggleButtonActive : ''}`}
+            onClick={() => setShowQR(false)}
+            type="button"
+          >
+            <Type size={14} />
+            Without QR Code
+          </button>
+        </div>
 
         <div className={styles.labelWrapper}>
           <canvas
@@ -290,7 +326,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
             }}
           />
           {/* Hidden QRCodeCanvas to render QR code for drawing onto main canvas */}
-          {showQrCode && spoolPath && (
+          {showQR && spoolPath && (
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} ref={qrCodeCanvasRef}>
               <QRCodeCanvas
                 value={spoolPath}
@@ -303,7 +339,7 @@ export function SpoolLabel({ spool }: SpoolLabelProps) {
         </div>
       </div>
 
-      {showQrCode && (
+      {showQR && (
         <div className={styles.urlInfo}>
           <span className={styles.urlLabel}>QR links to:</span>
           <code className={styles.url}>{spoolUrl}</code>

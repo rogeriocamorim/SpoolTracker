@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
-  Plus, MapPin, Package, Edit, Trash2, 
-  ChevronRight, ChevronDown, Eye
+  Plus, MapPin, Package, Edit, Trash2, Eye
 } from 'lucide-react';
 import { locationsApi } from '../../api';
 import { Button, Input, Select, Modal } from '../../components/ui';
@@ -69,8 +68,7 @@ const colorOptions = [
 export function Locations() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [expandedLocations, setExpandedLocations] = useState<Set<number>>(new Set());
-  
+
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -94,10 +92,6 @@ export function Locations() {
     queryFn: () => locationsApi.getAll(),
   });
 
-  const { data: locationTree = [] } = useQuery({
-    queryKey: ['locations', 'tree'],
-    queryFn: () => locationsApi.getTree(),
-  });
 
   const createMutation = useMutation({
     mutationFn: locationsApi.create,
@@ -161,22 +155,7 @@ export function Locations() {
     }
   };
 
-  const toggleExpand = (id: number) => {
-    setExpandedLocations(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const renderLocationRow = (location: Location, level: number = 0): React.ReactNode => {
-    const hasChildren = location.children && location.children.length > 0;
-    const isExpanded = expandedLocations.has(location.id);
-
+  const renderLocationRow = (location: Location): React.ReactNode => {
     const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
       // Don't navigate if clicking on buttons or interactive elements
       const target = e.target as HTMLElement;
@@ -191,63 +170,49 @@ export function Locations() {
     };
 
     return (
-      <React.Fragment key={location.id}>
-        <tr 
-          className={styles.locationRow}
-          onClick={handleRowClick}
-        >
-          <td style={{ paddingLeft: `${level * 24 + 16}px` }}>
-            <div className={styles.nameCell}>
-              {hasChildren && (
-                <button 
-                  className={styles.expandButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleExpand(location.id);
-                  }}
-                >
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-              )}
-              {!hasChildren && <span className={styles.expandPlaceholder} />}
-              <MapPin size={16} style={{ color: location.color || 'var(--color-text-muted)' }} />
-              <span className={styles.locationName}>{location.name}</span>
-            </div>
-          </td>
-          <td>{location.locationType || '-'}</td>
-          <td className={styles.spoolCount}>
-            <Package size={14} />
-            {location.spoolCount || 0}
-            {location.capacity && ` / ${location.capacity}`}
-          </td>
-          <td>
-            <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
-              <button 
-                className={styles.actionButton}
-                onClick={() => navigate(`/locations/${location.id}`)}
-                title="View spools"
-              >
-                <Eye size={16} />
-              </button>
-              <button 
-                className={styles.actionButton}
-                onClick={() => handleEdit(location)}
-                title="Edit"
-              >
-                <Edit size={16} />
-              </button>
-              <button 
-                className={`${styles.actionButton} ${styles.deleteButton}`}
-                onClick={() => handleDelete(location)}
-                title="Delete"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </td>
-        </tr>
-        {isExpanded && hasChildren && location.children!.map(child => renderLocationRow(child, level + 1))}
-      </React.Fragment>
+      <tr
+        key={location.id}
+        className={styles.locationRow}
+        onClick={handleRowClick}
+      >
+        <td>
+          <div className={styles.nameCell}>
+            <MapPin size={16} style={{ color: location.color || 'var(--color-text-muted)' }} />
+            <span className={styles.locationName}>{location.name}</span>
+          </div>
+        </td>
+        <td>{location.locationType || '-'}</td>
+        <td className={styles.spoolCount}>
+          <Package size={14} />
+          {location.spoolCount || 0}
+          {location.capacity && ` / ${location.capacity}`}
+        </td>
+        <td>
+          <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
+            <button
+              className={styles.actionButton}
+              onClick={() => navigate(`/locations/${location.id}`)}
+              title="View spools"
+            >
+              <Eye size={16} />
+            </button>
+            <button
+              className={styles.actionButton}
+              onClick={() => handleEdit(location)}
+              title="Edit"
+            >
+              <Edit size={16} />
+            </button>
+            <button
+              className={`${styles.actionButton} ${styles.deleteButton}`}
+              onClick={() => handleDelete(location)}
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </td>
+      </tr>
     );
   };
 
@@ -293,7 +258,7 @@ export function Locations() {
               </tr>
             </thead>
             <tbody>
-              {[...locationTree].sort((a, b) => a.name.localeCompare(b.name)).map(location => renderLocationRow(location))}
+              {[...locations].sort((a, b) => a.name.localeCompare(b.name)).map(location => renderLocationRow(location))}
             </tbody>
           </table>
         </div>

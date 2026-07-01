@@ -15,7 +15,6 @@ import java.util.List;
 @Table(
     name = "location",
     indexes = {
-        @Index(name = "idx_location_parent", columnList = "parent_id"),
         @Index(name = "idx_location_type", columnList = "location_type"),
         @Index(name = "idx_location_name", columnList = "name")
     }
@@ -33,14 +32,6 @@ public class Location extends PanacheEntity {
     @Column(name = "location_type")
     public String locationType;
 
-    // Parent location for hierarchical organization (e.g., "Rack A" contains "Slot 1", "Slot 2")
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
-    public Location parent;
-
-    // Child locations
-    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL)
-    public List<Location> children = new ArrayList<>();
 
     // Spools at this location
     @OneToMany(mappedBy = "storageLocation")
@@ -67,7 +58,7 @@ public class Location extends PanacheEntity {
     }
 
     public static List<Location> findRootLocations() {
-        return list("parent is null and isActive = true order by sortOrder, name");
+        return list("isActive = true order by sortOrder, name");
     }
 
     public static List<Location> findActive() {
@@ -78,12 +69,9 @@ public class Location extends PanacheEntity {
         return find("name", name).firstResult();
     }
 
-    // Get the full path name (e.g., "Rack A > Slot 1")
+    // Get the full path name (just the name now, no parent hierarchy)
     public String getFullPath() {
-        if (parent == null) {
-            return name;
-        }
-        return parent.getFullPath() + " > " + name;
+        return name;
     }
 
     // Get the count of spools at this location

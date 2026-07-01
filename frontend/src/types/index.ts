@@ -53,8 +53,6 @@ export interface Location {
   name: string;
   description?: string;
   locationType?: string;
-  parentId?: number;
-  parentName?: string;
   capacity?: number;
   icon?: string;
   color?: string;
@@ -62,7 +60,6 @@ export interface Location {
   isActive?: boolean;
   spoolCount?: number;
   fullPath?: string;
-  children?: Location[];
 }
 
 export interface Spool {

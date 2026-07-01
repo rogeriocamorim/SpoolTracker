@@ -27,7 +27,6 @@ public class LocationResource {
     @GET
     public List<LocationDTO> getAll(
             @QueryParam("type") String locationType,
-            @QueryParam("parentId") Long parentId,
             @QueryParam("activeOnly") @DefaultValue("true") boolean activeOnly,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("pageSize") @DefaultValue("100") int pageSize
@@ -36,16 +35,7 @@ public class LocationResource {
         List<Location> locations;
         
         // Build query with proper parameter binding
-        if (parentId != null) {
-            String query = "parent.id = ?1";
-            if (activeOnly) {
-                query += " and isActive = true";
-            }
-            query += " order by sortOrder, name";
-            locations = Location.find(query, parentId)
-                .page(panachePage)
-                .list();
-        } else if (locationType != null) {
+        if (locationType != null) {
             String query = "locationType = ?1";
             if (activeOnly) {
                 query += " and isActive = true";
@@ -145,11 +135,6 @@ public class LocationResource {
             return ResponseHelper.badRequest("Cannot delete location with " + spoolCount + " spool(s). Move or delete spools first.", uriInfo);
         }
         
-        // Check if there are child locations
-        if (location.children != null && !location.children.isEmpty()) {
-            return ResponseHelper.badRequest("Cannot delete location with child locations. Delete or move children first.", uriInfo);
-        }
-        
         // Safety: Clear any orphaned references before deletion
         // This handles any race conditions or cache inconsistencies
         Spool.update("storageLocation = null where storageLocation.id = ?1", id);
@@ -231,16 +216,6 @@ public class LocationResource {
         location.color = normalizeEmptyString(dto.color());
         location.sortOrder = dto.sortOrder() != null ? dto.sortOrder() : 0;
         location.isActive = dto.isActive() != null ? dto.isActive() : true;
-        
-        if (dto.parentId() != null) {
-            Location parent = Location.findById(dto.parentId());
-            if (parent == null) {
-                throw new jakarta.ws.rs.BadRequestException("Parent location not found");
-            }
-            location.parent = parent;
-        } else {
-            location.parent = null;
-        }
     }
     
     /**

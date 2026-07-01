@@ -4,12 +4,10 @@ import type { Location, Spool } from '../types';
 export const locationsApi = {
   getAll: async (filters?: {
     type?: string;
-    parentId?: number;
     activeOnly?: boolean;
   }): Promise<Location[]> => {
     const params = new URLSearchParams();
     if (filters?.type) params.append('type', filters.type);
-    if (filters?.parentId) params.append('parentId', String(filters.parentId));
     if (filters?.activeOnly !== undefined) params.append('activeOnly', String(filters.activeOnly));
     
     const { data } = await apiClient.get(`/locations?${params.toString()}`);
@@ -36,7 +34,7 @@ export const locationsApi = {
     return data;
   },
 
-  create: async (location: Omit<Location, 'id' | 'spoolCount' | 'fullPath' | 'children'>): Promise<Location> => {
+  create: async (location: Omit<Location, 'id' | 'spoolCount' | 'fullPath'>): Promise<Location> => {
     const { data } = await apiClient.post('/locations', location);
     return data;
   },
