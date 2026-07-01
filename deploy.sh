@@ -522,7 +522,7 @@ echo "🎉 Deployment finished!"
 show_total_time
 echo ""
 echo "🌐 Application URLs:"
-echo "   Frontend (HTTP): http://$REMOTE_HOST:3000"
+echo "   Frontend (HTTP): http://$REMOTE_HOST:3003"
 echo "   Frontend (HTTPS): https://$REMOTE_HOST:3443"
 echo "   Backend API: http://$REMOTE_HOST:9002/api"
 echo ""

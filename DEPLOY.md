@@ -125,7 +125,7 @@ services:
     container_name: spooltracker-frontend
     image: spooltracker-frontend:latest
     ports:
-      - "3000:80"
+      - "3003:80"
     depends_on:
       - backend
     restart: unless-stopped
@@ -135,7 +135,7 @@ services:
 
 After deployment:
 
-- **Frontend**: http://192.168.2.13:3000
+- **Frontend**: http://192.168.2.13:3003
 - **Backend API**: http://192.168.2.13:9002/api
 
 ## Environment Variables

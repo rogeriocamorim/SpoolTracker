@@ -29,7 +29,7 @@ services:
       QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
       # CORS Configuration
       QUARKUS_HTTP_CORS: "true"
-      QUARKUS_HTTP_CORS_ORIGINS: "http://192.168.2.13:3000,http://localhost:3000,http://spooltracker.local:3000,https://192.168.2.13:3443,https://192.168.2.13:3000"
+      QUARKUS_HTTP_CORS_ORIGINS: "http://192.168.2.13:3003,http://localhost:3003,http://spooltracker.local:3003,https://192.168.2.13:3443,https://192.168.2.13:3003"
       # HTTP Port
       QUARKUS_HTTP_PORT: "9002"
       QUARKUS_HTTP_CORS_METHODS: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
@@ -54,7 +54,7 @@ services:
       args:
         VITE_API_URL: /api
     ports:
-      - "3000:80"
+      - "3003:80"
     depends_on:
       - backend
     networks:
